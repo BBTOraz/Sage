@@ -21,3 +21,19 @@ func waitRunnerEvent(stream <-chan runtime.Event) tea.Cmd {
 		return nil
 	}
 }
+
+func waitIngestEvent(stream <-chan runtime.IngestEvent) tea.Cmd {
+	if stream == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		for e := range stream {
+			return ingestEventMsg{
+				Event:  e,
+				Stream: stream,
+			}
+		}
+		return nil
+	}
+}

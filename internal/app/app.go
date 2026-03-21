@@ -13,10 +13,18 @@ func Run(ctx context.Context, cfg *Config) error {
 		return err
 	}
 
-	service, err := agent.NewAdkService(ctx, &env, cfg.Mode)
+	application, err := agent.NewApplication(ctx, agent.ApplicationConfig{
+		Env:          env,
+		ApprovalMode: cfg.Mode,
+	})
 	if err != nil {
 		return err
 	}
-	manager := runtime.NewManager(cfg.Mode, service.Runner())
+	runner, err := application.Runner(ctx)
+	if err != nil {
+		return err
+	}
+
+	manager := runtime.NewManager(cfg.Mode, runner, application)
 	return tui.Run(ctx, manager)
 }

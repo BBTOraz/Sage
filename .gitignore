@@ -1,0 +1,7 @@
+internal/docs/
+.env
+sage.exe
+.idea/
+*.md
+!/README.md
+

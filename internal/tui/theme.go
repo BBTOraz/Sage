@@ -130,6 +130,53 @@ var (
 var helpBarStyle = lipgloss.NewStyle().
 	Foreground(colorFaint)
 
+// ── Activity / Commands ────────────────────────────────────
+
+var (
+	activityBlockStyle = lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(colorBorder).
+				Padding(0, 1)
+
+	activityTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorSystem)
+
+	activityTextStyle = lipgloss.NewStyle().
+				Foreground(colorText)
+
+	activityQueuedStyle = lipgloss.NewStyle().
+				Foreground(colorSystem)
+
+	activityRunningStyle = lipgloss.NewStyle().
+				Foreground(colorAgent)
+
+	activitySuccessStyle = lipgloss.NewStyle().
+				Foreground(colorSuccess)
+
+	activityErrorStyle = lipgloss.NewStyle().
+				Foreground(colorError)
+
+	activityInfoStyle = lipgloss.NewStyle().
+				Foreground(colorFaint)
+
+	slashBlockStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(colorBrand).
+			Padding(0, 1)
+
+	slashTitleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorBrand)
+
+	slashNameStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorBright)
+
+	slashDescStyle = lipgloss.NewStyle().
+			Foreground(colorFaint)
+)
+
 // ── Page / Layout ──────────────────────────────────────────
 
 var pageStyle = lipgloss.NewStyle().

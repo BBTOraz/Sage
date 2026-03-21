@@ -1,0 +1,22 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:3.4.0
+    container_name: sage-opensearch
+    environment:
+      discovery.type: single-node
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+    mem_limit: 1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - sage-opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  sage-opensearch-data:

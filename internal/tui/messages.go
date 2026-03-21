@@ -25,3 +25,8 @@ type runnerEventMsg struct {
 	Event  runtime.Event
 	Stream <-chan runtime.Event
 }
+
+type ingestEventMsg struct {
+	Event  runtime.IngestEvent
+	Stream <-chan runtime.IngestEvent
+}

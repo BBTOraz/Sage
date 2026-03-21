@@ -23,9 +23,9 @@ func (e *ToolResponseError) Error() string {
 	return fmt.Sprintf("type of error %s, called tool name %s, reason why denied %s, hint: %s", e.Type, e.Tool, e.Reason, e.Hint)
 }
 
-func MapToolError(name, path string, err error) *compose.ToolOutput {
+func MapToolErrorResult(name, path string, err error) string {
 	if err == nil {
-		return nil
+		return ""
 	}
 	var Err apperr.AppError
 	code := apperr.UnknownError
@@ -41,7 +41,14 @@ func MapToolError(name, path string, err error) *compose.ToolOutput {
 		Reason:      err.Error(),
 		Hint:        hint,
 	}
+	return resp.Error()
+}
+
+func MapToolError(name, path string, err error) *compose.ToolOutput {
+	if err == nil {
+		return nil
+	}
 	return &compose.ToolOutput{
-		Result: resp.Error(),
+		Result: MapToolErrorResult(name, path, err),
 	}
 }

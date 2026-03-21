@@ -18,6 +18,7 @@ func (m *model) View() tea.View {
 	topDivider := renderDivider(w)
 	body := m.viewport.View()
 	bottomDivider := renderDivider(w)
+	activity := m.activityDockView(w, m.spinner.View())
 
 	var input string
 	if m.pendingApproval != nil {
@@ -28,16 +29,19 @@ func (m *model) View() tea.View {
 
 	helpBar := m.contextHelp()
 
+	sections := []string{
+		header,
+		topDivider,
+		body,
+	}
+	if activity != "" {
+		sections = append(sections, renderDivider(w), activity)
+	}
+	sections = append(sections, bottomDivider, input)
+	sections = append(sections, helpBar)
+
 	content := pageStyle.Render(
-		lipgloss.JoinVertical(
-			lipgloss.Left,
-			header,
-			topDivider,
-			body,
-			bottomDivider,
-			input,
-			helpBar,
-		),
+		lipgloss.JoinVertical(lipgloss.Left, sections...),
 	)
 
 	view := tea.NewView(content)
@@ -55,13 +59,18 @@ func (m *model) viewportSize() (int, int) {
 		inputHeight = 0
 	}
 	helpHeight := 1
+	activityHeight := m.activityDockHeight()
+	if activityHeight > 0 {
+		activityHeight++
+	}
 
 	availableHeight := m.height -
 		pageStyle.GetVerticalFrameSize() -
 		headerHeight -
 		dividerHeight -
 		inputHeight -
-		helpHeight
+		helpHeight -
+		activityHeight
 
 	if availableWidth < 20 {
 		availableWidth = 20
@@ -74,7 +83,7 @@ func (m *model) viewportSize() (int, int) {
 }
 
 func renderHeader(mode, status string, width int) string {
-	left := brandStyle.Render("DossierForge")
+	left := brandStyle.Render("Sage")
 	right := headerModeStyle.Render(mode) +
 		headerStatusStyle.Render(" · ") +
 		headerStatusStyle.Render(status)
@@ -100,6 +109,6 @@ func (m *model) contextHelp() string {
 		)
 	}
 	return helpBarStyle.Render(
-		"  enter send · shift+enter newline · ctrl+e expand tools · ctrl+c quit",
+		"  enter send · / commands · shift+enter newline · ctrl+e expand tools · ctrl+c quit",
 	)
 }

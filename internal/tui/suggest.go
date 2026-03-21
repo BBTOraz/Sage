@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"image/color"
 	"os"
 	"path/filepath"
 	"sort"
@@ -10,6 +11,22 @@ import (
 )
 
 const maxVisible = 8
+
+type overlayItem struct {
+	Primary   string
+	Secondary string
+}
+
+type selectionOverlayConfig struct {
+	Title     string
+	QueryIcon string
+	Query     string
+	Items     []overlayItem
+	Selected  int
+	Offset    int
+	Width     int
+	Accent    color.Color
+}
 
 type fileSuggest struct {
 	active   bool
@@ -111,56 +128,24 @@ func (fs fileSuggest) View(width int) string {
 		return ""
 	}
 
-	selectedStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(colorBright).
-		Background(lipgloss.Color("#3E4451"))
-	normalStyle := lipgloss.NewStyle().
-		Foreground(colorText)
-	hdrStyle := lipgloss.NewStyle().
-		Foreground(colorFaint).
-		Italic(true)
-	countStyle := lipgloss.NewStyle().
-		Foreground(colorFaint)
-
-	var lines []string
-
-	queryDisplay := fs.query
-	if queryDisplay == "" {
-		queryDisplay = "..."
-	}
-	lines = append(lines, hdrStyle.Render("  @ "+queryDisplay))
-
-	end := fs.offset + maxVisible
-	if end > len(fs.items) {
-		end = len(fs.items)
-	}
-	visible := fs.items[fs.offset:end]
-
-	if fs.offset > 0 {
-		lines = append(lines, countStyle.Render("  ↑ more"))
+	items := make([]overlayItem, 0, len(fs.items))
+	for _, item := range fs.items {
+		items = append(items, overlayItem{
+			Primary:   filepath.Base(item),
+			Secondary: item,
+		})
 	}
 
-	for i, item := range visible {
-		idx := fs.offset + i
-		display := filepath.Base(item)
-		if idx == fs.selected {
-			lines = append(lines, selectedStyle.Width(width-6).Render("► "+display+"  "+countStyle.Render(item)))
-		} else {
-			lines = append(lines, normalStyle.Width(width-6).Render("  "+display+"  "+countStyle.Render(item)))
-		}
-	}
-
-	if end < len(fs.items) {
-		lines = append(lines, countStyle.Render("  ↓ more"))
-	}
-
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(colorTool).
-		Padding(0, 1).
-		Width(width - 4).
-		Render(strings.Join(lines, "\n"))
+	return renderSelectionOverlay(selectionOverlayConfig{
+		Title:     "Files",
+		QueryIcon: "@",
+		Query:     fs.query,
+		Items:     items,
+		Selected:  fs.selected,
+		Offset:    fs.offset,
+		Width:     width,
+		Accent:    colorTool,
+	})
 }
 
 func walkFiles(baseDir string) []string {
@@ -191,4 +176,72 @@ func walkFiles(baseDir string) []string {
 
 	sort.Strings(files)
 	return files
+}
+
+func renderSelectionOverlay(cfg selectionOverlayConfig) string {
+	if len(cfg.Items) == 0 {
+		return ""
+	}
+
+	selectedStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(colorBright).
+		Background(lipgloss.Color("#3E4451"))
+	normalStyle := lipgloss.NewStyle().
+		Foreground(colorText)
+	hdrStyle := lipgloss.NewStyle().
+		Foreground(colorFaint).
+		Italic(true)
+	countStyle := lipgloss.NewStyle().
+		Foreground(colorFaint)
+
+	queryDisplay := cfg.Query
+	if strings.TrimSpace(queryDisplay) == "" {
+		queryDisplay = "..."
+	}
+
+	lines := []string{
+		hdrStyle.Render("  " + cfg.QueryIcon + " " + queryDisplay),
+	}
+
+	end := cfg.Offset + maxVisible
+	if end > len(cfg.Items) {
+		end = len(cfg.Items)
+	}
+	visible := cfg.Items[cfg.Offset:end]
+
+	if cfg.Offset > 0 {
+		lines = append(lines, countStyle.Render("  ↑ more"))
+	}
+
+	for i, item := range visible {
+		idx := cfg.Offset + i
+		line := "  " + item.Primary
+		if item.Secondary != "" {
+			line += "  " + countStyle.Render(item.Secondary)
+		}
+		if idx == cfg.Selected {
+			lines = append(lines, selectedStyle.Width(cfg.Width-6).Render("► "+item.Primary+"  "+countStyle.Render(item.Secondary)))
+		} else {
+			lines = append(lines, normalStyle.Width(cfg.Width-6).Render(line))
+		}
+	}
+
+	if end < len(cfg.Items) {
+		lines = append(lines, countStyle.Render("  ↓ more"))
+	}
+
+	blockStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(cfg.Accent).
+		Padding(0, 1).
+		Width(cfg.Width - 4)
+
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(cfg.Accent)
+
+	block := blockStyle.Render(strings.Join(lines, "\n"))
+	block = injectBorderTitle(block, titleStyle.Render(cfg.Title), "")
+	return block
 }

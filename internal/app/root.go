@@ -15,7 +15,7 @@ type Config struct {
 func rootCmd(ctx context.Context) *cobra.Command {
 	var guard, full bool
 	rcmd := &cobra.Command{
-		Use:   "dossierforge",
+		Use:   "sage",
 		Short: "Chat CLI agent",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

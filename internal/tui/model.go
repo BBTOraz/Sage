@@ -4,6 +4,7 @@ import (
 	"bilge-lib/internal/approval"
 	"bilge-lib/internal/runtime"
 	"context"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -33,6 +34,8 @@ type model struct {
 	pendingApproval *runtime.PendingApproval
 	approvalToggle  approvalToggle
 	fileSuggest     fileSuggest
+	slash           slashState
+	activities      []activityEntry
 }
 
 func newModel(manager *runtime.Manager, ctx context.Context) *model {
@@ -43,7 +46,7 @@ func newModel(manager *runtime.Manager, ctx context.Context) *model {
 		}
 		return "  "
 	})
-	input.Placeholder = "write a message and press enter"
+	input.Placeholder = "write a message or type / for commands"
 	input.CharLimit = 0
 	input.SetWidth(60)
 	input.SetHeight(3)
@@ -94,17 +97,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		w, h := m.viewportSize()
-		m.area.SetWidth(w)
-		m.viewport.SetWidth(w)
-		m.viewport.SetHeight(h)
+		m.syncLayout()
 		m.refreshViewport()
-		m.help.SetWidth(m.width)
 
 		return m, nil
 
 	case spinner.TickMsg:
-		if m.activeRunID != "" {
+		if m.activeRunID != "" || m.hasActiveIngestJobs() {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			m.refreshViewport()
@@ -135,11 +134,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 			m.assistantDraft = ""
 			m.pendingApproval = nil
+			m.syncLayout()
 			m.refreshViewport()
 
 		case runtime.EventRunCompleted:
 			m.activeRunID = ""
 			m.pendingApproval = nil
+			m.syncLayout()
 			m.refreshViewport()
 
 		case runtime.EventRunFailed:
@@ -147,6 +148,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activeRunID = ""
 			m.pendingApproval = nil
 			m.area.Focus()
+			m.syncLayout()
 			if eventMsg.Err != nil {
 				m.appendMessage(Message{
 					Kind: MessageError,
@@ -161,6 +163,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.approvalToggle = newApprovalToggle()
 			m.activeRunID = ""
 			m.area.Blur()
+			m.syncLayout()
 			m.refreshViewport()
 
 		case runtime.EventRunResumed:
@@ -168,6 +171,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, waitRunnerEvent(msg.Stream)
+
+	case ingestEventMsg:
+		m.upsertIngestActivity(msg.Event)
+		m.syncLayout()
+		m.refreshViewport()
+		return m, waitIngestEvent(msg.Stream)
 
 	case tea.KeyPressMsg:
 		// Quit always works
@@ -254,6 +263,31 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if m.slash.Active {
+			switch {
+			case key.Matches(msg, key.NewBinding(key.WithKeys("up"))):
+				m.moveSlashUp()
+				m.refreshViewport()
+				return m, nil
+			case key.Matches(msg, key.NewBinding(key.WithKeys("down"))):
+				m.moveSlashDown()
+				m.refreshViewport()
+				return m, nil
+			case key.Matches(msg, key.NewBinding(key.WithKeys("tab"))):
+				if cmd, ok := m.selectedSlashCommand(); ok {
+					m.area.SetValue("/" + cmd.Name + " ")
+					m.updateSlashState()
+					m.refreshViewport()
+					return m, nil
+				}
+			case key.Matches(msg, key.NewBinding(key.WithKeys("escape"))):
+				m.area.SetValue("")
+				m.updateSlashState()
+				m.refreshViewport()
+				return m, nil
+			}
+		}
+
 		// Normal input mode
 		switch {
 		case key.Matches(msg, m.keys.Send):
@@ -275,6 +309,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.area, cmd = m.area.Update(msg)
 	cmds = append(cmds, cmd)
+	m.updateSlashState()
+	m.refreshViewport()
 
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
@@ -283,6 +319,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleSend() (tea.Model, tea.Cmd) {
+	raw := strings.TrimSpace(m.area.Value())
+	if strings.HasPrefix(raw, "/") {
+		return m.handleSlashCommand(raw)
+	}
+
 	if m.activeRunID != "" {
 		m.appendMessage(Message{
 			Kind: MessageSystem,
@@ -291,16 +332,16 @@ func (m *model) handleSend() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	value := strings.TrimSpace(m.area.Value())
-	if value == "" {
+	if raw == "" {
 		return m, nil
 	}
 
-	message := Message{Kind: MessageUser, Text: value}
+	message := Message{Kind: MessageUser, Text: raw}
 	m.appendMessage(message)
 	m.area.SetValue("")
+	m.updateSlashState()
 
-	handle, err := m.manager.StartRun(m.ctx, runtime.StartRunRequest{Input: value})
+	handle, err := m.manager.StartRun(m.ctx, runtime.StartRunRequest{Input: raw})
 	if err != nil {
 		m.appendMessage(Message{Kind: MessageError, Text: err.Error()})
 		return m, nil
@@ -313,6 +354,57 @@ func (m *model) handleSend() (tea.Model, tea.Cmd) {
 		m.spinner.Tick,
 		waitRunnerEvent(handle.Events),
 	)
+}
+
+func (m *model) handleSlashCommand(raw string) (tea.Model, tea.Cmd) {
+	if completed, ok := autocompleteSlashCommand(raw); ok && strings.TrimSpace(raw) != strings.TrimSpace(completed) {
+		m.area.SetValue(completed)
+		m.updateSlashState()
+		return m, nil
+	}
+
+	command, arg, ok := resolveSlashCommand(raw)
+	if !ok {
+		m.addActivityNotice("failed", "Command", "unknown slash command")
+		m.area.SetValue("")
+		m.updateSlashState()
+		m.refreshViewport()
+		return m, nil
+	}
+
+	switch command.Name {
+	case "ingest":
+		if strings.TrimSpace(arg) == "" {
+			m.area.SetValue("/ingest ")
+			m.updateSlashState()
+			m.addActivityNotice("info", "Command", "provide a directory path for /ingest")
+			m.refreshViewport()
+			return m, nil
+		}
+
+		handle, err := m.manager.StartIngest(m.ctx, arg)
+		if err != nil {
+			m.addActivityNotice("failed", "Ingest", err.Error())
+			m.area.SetValue("")
+			m.updateSlashState()
+			m.refreshViewport()
+			return m, nil
+		}
+
+		m.area.SetValue("")
+		m.updateSlashState()
+		m.refreshViewport()
+		return m, tea.Batch(
+			m.spinner.Tick,
+			waitIngestEvent(handle.Events),
+		)
+	default:
+		m.addActivityNotice("failed", "Command", "unsupported slash command")
+		m.area.SetValue("")
+		m.updateSlashState()
+		m.refreshViewport()
+		return m, nil
+	}
 }
 
 func (m *model) handleApprove() (tea.Model, tea.Cmd) {
@@ -335,6 +427,7 @@ func (m *model) handleApprove() (tea.Model, tea.Cmd) {
 	m.activeRunID = handle.ID
 	m.runStatus = handle.Status
 	m.area.Focus()
+	m.syncLayout()
 
 	return m, tea.Batch(
 		m.spinner.Tick,
@@ -362,6 +455,7 @@ func (m *model) handleDeny() (tea.Model, tea.Cmd) {
 	m.activeRunID = handle.ID
 	m.runStatus = handle.Status
 	m.area.Focus()
+	m.syncLayout()
 
 	return m, tea.Batch(
 		m.spinner.Tick,
@@ -406,19 +500,43 @@ func (m *model) refreshViewport() {
 		if overlay != "" {
 			content += "\n\n" + overlay
 		}
+	} else if m.slash.Active {
+		overlay := m.slashOverlayView(w)
+		if overlay != "" {
+			content += "\n\n" + overlay
+		}
 	}
 	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
 }
 
+func (m *model) syncLayout() {
+	if m.width <= 0 || m.height <= 0 {
+		return
+	}
+
+	w, h := m.viewportSize()
+	m.area.SetWidth(w)
+	m.viewport.SetWidth(w)
+	m.viewport.SetHeight(h)
+	m.help.SetWidth(m.width)
+}
+
 func (m *model) helpStatus() string {
+	base := ""
 	if m.pendingApproval != nil {
-		return "waiting"
+		base = "waiting"
+	} else if m.activeRunID == "" {
+		base = "idle"
+	} else {
+		base = string(m.runStatus)
 	}
-	if m.activeRunID == "" {
-		return "idle"
+
+	activeIngest := m.activeIngestCount()
+	if activeIngest == 0 {
+		return base
 	}
-	return string(m.runStatus)
+	return base + " · ingest " + strconv.Itoa(activeIngest)
 }
 
 func toolName(pa *runtime.PendingApproval) string {

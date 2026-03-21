@@ -29,7 +29,7 @@ func runDoc(out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(out, "dossierforge doctor")
+	fmt.Fprintln(out, "sage doctor")
 	fmt.Fprintf(out, "[ok] os: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	fmt.Fprintf(out, "[ok] cwd path: %s\n", cwd)
 	fmt.Fprintf(out, "[ok] Model: %s\n", env.Model)

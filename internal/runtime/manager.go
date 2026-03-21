@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"bilge-lib/internal/approval"
+	"bilge-lib/internal/ingestion/pipeline"
 	"bilge-lib/internal/observability"
 	"context"
 	"errors"
@@ -20,12 +21,19 @@ type Manager struct {
 	activeRun       *Run
 	pendingApproval *PendingApproval
 	collector       *observability.Collector
+	ingester        pipeline.Ingester
+	ingestQueue     chan ingestJob
+	ingestWorkers   int
+	ingestOnce      sync.Once
 }
 
-func NewManager(mode approval.Mode, runner *adk.Runner) *Manager {
+func NewManager(mode approval.Mode, runner *adk.Runner, ingester pipeline.Ingester) *Manager {
 	return &Manager{
-		mu:     sync.Mutex{},
-		runner: runner,
+		mu:            sync.Mutex{},
+		runner:        runner,
+		ingester:      ingester,
+		ingestQueue:   make(chan ingestJob, 32),
+		ingestWorkers: 2,
 		session: Session{
 			ID:    SessionID(uuid.New().String()),
 			Mode:  mode,

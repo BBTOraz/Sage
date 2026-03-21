@@ -1,4 +1,4 @@
-package agent
+package middlewares
 
 import (
 	"bilge-lib/internal/approval"
@@ -14,13 +14,18 @@ type ApprovalMiddleware struct {
 	mode approval.Mode
 }
 
+var approvalBypassTools = map[string]struct{}{
+	"task":        {},
+	"write_todos": {},
+}
+
 func init() {
 	gob.Register(approval.ToolInfo{})
 }
 
 func (am *ApprovalMiddleware) WrapInvokableToolCall(_ context.Context, next adk.InvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.InvokableToolCallEndpoint, error) {
 	return func(ctx context.Context, argumentsInJSON string, opts ...tool.Option) (string, error) {
-		if am.mode == approval.Full {
+		if am.mode == approval.Full || shouldBypassApproval(tCtx) {
 			return next(ctx, argumentsInJSON, opts...)
 		}
 
@@ -48,4 +53,12 @@ func (am *ApprovalMiddleware) WrapInvokableToolCall(_ context.Context, next adk.
 
 		return next(ctx, args, opts...)
 	}, nil
+}
+
+func shouldBypassApproval(tCtx *adk.ToolContext) bool {
+	if tCtx == nil {
+		return false
+	}
+	_, ok := approvalBypassTools[tCtx.Name]
+	return ok
 }

@@ -62,6 +62,21 @@ func (s *HistoryStore) UpsertRun(ctx context.Context, run Run) error {
 	return err
 }
 
+func (s *HistoryStore) LastRunSequence(ctx context.Context, runID string) (int, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(sequence), 0)
+		FROM history_events
+		WHERE run_id = ?
+	`, runID)
+
+	var sequence int
+	if err := row.Scan(&sequence); err != nil {
+		return 0, err
+	}
+
+	return sequence, nil
+}
+
 func (s *HistoryStore) AppendEvents(ctx context.Context, events []HistoryEvent) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

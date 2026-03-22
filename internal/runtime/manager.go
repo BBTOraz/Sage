@@ -180,7 +180,16 @@ func (m *Manager) streamAgentEvents(ctx context.Context, runID RunID, start Even
 	out := make(chan Event)
 	go func() {
 		defer close(out)
-		sequence := 0
+		sequence, err := m.historyStore.LastEventSequence(ctx, runID)
+		if err != nil {
+			out <- Event{
+				RunID:  runID,
+				Status: RunStatusFailed,
+				Type:   EventRunFailed,
+				Err:    err,
+			}
+			return
+		}
 		emit := func(event Event) bool {
 			out <- event
 			sequence++

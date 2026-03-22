@@ -105,6 +105,10 @@ func (s *sqliteRuntimeHistoryStore) SaveRun(ctx context.Context, snapshot runtim
 	})
 }
 
+func (s *sqliteRuntimeHistoryStore) LastEventSequence(ctx context.Context, runID runtime.RunID) (int, error) {
+	return s.store.LastRunSequence(ctx, string(runID))
+}
+
 func (s *sqliteRuntimeHistoryStore) AppendEvent(ctx context.Context, event runtime.HistoryEventRecord) error {
 	return s.store.AppendEvents(ctx, []sqlitestore.HistoryEvent{
 		{

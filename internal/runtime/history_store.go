@@ -28,6 +28,7 @@ type HistoryEventRecord struct {
 type HistoryStore interface {
 	SaveSession(ctx context.Context, snapshot SessionSnapshot) error
 	SaveRun(ctx context.Context, snapshot RunSnapshot) error
+	LastEventSequence(ctx context.Context, runID RunID) (int, error)
 	AppendEvent(ctx context.Context, event HistoryEventRecord) error
 }
 
@@ -35,6 +36,9 @@ type NoopHistoryStore struct{}
 
 func (NoopHistoryStore) SaveSession(context.Context, SessionSnapshot) error { return nil }
 func (NoopHistoryStore) SaveRun(context.Context, RunSnapshot) error         { return nil }
+func (NoopHistoryStore) LastEventSequence(context.Context, RunID) (int, error) {
+	return 0, nil
+}
 func (NoopHistoryStore) AppendEvent(context.Context, HistoryEventRecord) error {
 	return nil
 }

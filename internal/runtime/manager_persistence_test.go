@@ -3,6 +3,7 @@ package runtime
 import (
 	"bilge-lib/internal/approval"
 	"context"
+	"errors"
 	"io"
 	"testing"
 
@@ -102,6 +103,44 @@ func TestManagerApprovePendingUsesRunnerResumeAndPersistsEvents(t *testing.T) {
 	}
 }
 
+func TestManagerApprovePendingContinuesEventSequenceForExistingRun(t *testing.T) {
+	runner := &stubRunner{
+		resumeIter: iteratorFromAgentEvents(
+			adk.EventFromMessage(schema.AssistantMessage("approved", nil), nil, schema.Assistant, ""),
+		),
+	}
+	history := &stubHistoryStore{
+		events: []HistoryEventRecord{
+			{RunID: RunID("run-1"), Sequence: 1, Type: EventRunStarted},
+			{RunID: RunID("run-1"), Sequence: 2, Type: EventAssistantChunk},
+			{RunID: RunID("run-1"), Sequence: 3, Type: EventRunInterrupted},
+		},
+	}
+	manager := NewManager(approval.Guard, runner, nil, history)
+	manager.pendingApproval = &PendingApproval{
+		RunID:        RunID("run-1"),
+		CheckPointID: "checkpoint-1",
+		InterruptID:  "interrupt-1",
+	}
+
+	handle, err := manager.ApprovePending(context.Background())
+	if err != nil {
+		t.Fatalf("ApprovePending() error = %v", err)
+	}
+
+	_ = collectRuntimeEvents(handle.Events)
+
+	if len(history.events) != 7 {
+		t.Fatalf("persisted events len = %d, want %d", len(history.events), 7)
+	}
+
+	for idx, want := range []int{1, 2, 3, 4, 5, 6, 7} {
+		if history.events[idx].Sequence != want {
+			t.Fatalf("history.events[%d].Sequence = %d, want %d", idx, history.events[idx].Sequence, want)
+		}
+	}
+}
+
 type stubRunner struct {
 	queryIter          *adk.AsyncIterator[*adk.AgentEvent]
 	resumeIter         *adk.AsyncIterator[*adk.AgentEvent]
@@ -135,7 +174,22 @@ func (s *stubHistoryStore) SaveRun(_ context.Context, snapshot RunSnapshot) erro
 	return nil
 }
 
+func (s *stubHistoryStore) LastEventSequence(_ context.Context, runID RunID) (int, error) {
+	last := 0
+	for _, event := range s.events {
+		if event.RunID == runID && event.Sequence > last {
+			last = event.Sequence
+		}
+	}
+	return last, nil
+}
+
 func (s *stubHistoryStore) AppendEvent(_ context.Context, event HistoryEventRecord) error {
+	for _, existing := range s.events {
+		if existing.RunID == event.RunID && existing.Sequence == event.Sequence {
+			return errors.New("duplicate history event sequence")
+		}
+	}
 	s.events = append(s.events, event)
 	return nil
 }

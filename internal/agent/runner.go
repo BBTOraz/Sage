@@ -7,7 +7,7 @@ import (
 )
 
 func (a *Application) Runner(ctx context.Context) (*adk.Runner, error) {
-	rootAgent, err := a.DeepAgent(ctx)
+	rootAgent, err := a.RootAgent(ctx)
 	if err != nil {
 		return nil, err
 	}

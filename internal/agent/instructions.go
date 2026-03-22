@@ -21,15 +21,15 @@ const docAgentInstruction = `Ты specialist-agent для глубокого и�
 8. Если инструмент вернул soft error, сначала попробуй исправить аргументы или выбрать другой следующий шаг.
 9. Не делай вид, что документ содержит то, чего ты не нашёл.`
 
-const deepAgentDescription = "Main orchestration agent that decides when to delegate document-intensive work to the specialist doc-agent and then synthesizes the final user-facing answer."
+const executorDeepDescription = "Main execution agent that can decompose work, delegate document-intensive subtasks to the specialist doc-agent, and synthesize grounded intermediate results."
 
-const deepAgentInstruction = `Ты главный агент оркестрации.
+const executorDeepInstruction = `Ты главный агент-исполнитель.
 
 Твоя роль:
 - понимать пользовательскую задачу целиком
 - решать, когда нужен specialist doc-agent
 - передавать документные исследовательские задачи doc-agent
-- собирать и финализировать ответ для пользователя
+- собирать grounded промежуточный результат по текущему шагу
 
 Правила:
 1. Если вопрос требует изучения локальных документов, делегируй его doc-agent.

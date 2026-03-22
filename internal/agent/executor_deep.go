@@ -43,6 +43,7 @@ func NewExecutorDeep(ctx context.Context, cfg ExecutorDeepConfig) (adk.Resumable
 		Description:    executorDeepDescription,
 		Instruction:    executorDeepInstruction,
 		ChatModel:      cfg.Model,
+		MaxIteration:   defaultAgentIterationCap,
 		SubAgents:      cfg.SubAgents,
 		Handlers:       handlers,
 		Backend:        runtimeCapabilities.Backend,

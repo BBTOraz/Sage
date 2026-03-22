@@ -9,6 +9,8 @@ import (
 	"github.com/cloudwego/eino/components/model"
 )
 
+const defaultAgentIterationCap = 200
+
 func NewRootPlanExecute(ctx context.Context, plannerModel model.ToolCallingChatModel, executor adk.Agent) (adk.ResumableAgent, error) {
 	planner, err := planexecute.NewPlanner(ctx, &planexecute.PlannerConfig{
 		ToolCallingChatModel: plannerModel,
@@ -25,9 +27,10 @@ func NewRootPlanExecute(ctx context.Context, plannerModel model.ToolCallingChatM
 	}
 
 	return planexecute.New(ctx, &planexecute.Config{
-		Planner:   planner,
-		Executor:  executor,
-		Replanner: replanner,
+		Planner:       planner,
+		Executor:      executor,
+		Replanner:     replanner,
+		MaxIterations: defaultAgentIterationCap,
 	})
 }
 

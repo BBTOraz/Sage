@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -83,6 +84,35 @@ func TestExecutorDeepFilesystemCanBeDisabled(t *testing.T) {
 	}
 }
 
+func TestExecutorDeepUsesIterationCap200(t *testing.T) {
+	ctx := context.Background()
+	model := &loopingTaskToolCallingModel{
+		subagentName:         "test-subagent",
+		toolCallsBeforeFinal: 21,
+	}
+	agent, err := NewExecutorDeep(ctx, ExecutorDeepConfig{
+		Model:        model,
+		ApprovalMode: approval.Guard,
+		SubAgents:    []adk.Agent{&testSubAgent{name: model.subagentName}},
+	})
+	if err != nil {
+		t.Fatalf("NewExecutorDeep() error = %v", err)
+	}
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{
+		Agent:           agent,
+		EnableStreaming: false,
+	})
+
+	if err := drainAgentEvents(runner.Query(ctx, "long task")); err != nil {
+		t.Fatalf("runner.Query() error = %v", err)
+	}
+
+	if model.toolCallCount != 21 {
+		t.Fatalf("tool call count = %d, want %d", model.toolCallCount, 21)
+	}
+}
+
 type capturingToolCallingModel struct {
 	toolNames []string
 }
@@ -119,6 +149,63 @@ func collectToolNames(tools []*schema.ToolInfo) []string {
 		names = append(names, toolInfo.Name)
 	}
 	return names
+}
+
+type loopingTaskToolCallingModel struct {
+	toolNames            []string
+	subagentName         string
+	toolCallCount        int
+	toolCallsBeforeFinal int
+}
+
+func (m *loopingTaskToolCallingModel) Generate(_ context.Context, _ []*schema.Message, opts ...model.Option) (*schema.Message, error) {
+	m.captureTools(opts...)
+	if m.toolCallCount < m.toolCallsBeforeFinal {
+		m.toolCallCount++
+		return schema.AssistantMessage("", []schema.ToolCall{{
+			ID:   fmt.Sprintf("task-%d", m.toolCallCount),
+			Type: "function",
+			Function: schema.FunctionCall{
+				Name:      "task",
+				Arguments: fmt.Sprintf(`{"subagent_type":"%s","description":"work item %d"}`, m.subagentName, m.toolCallCount),
+			},
+		}}), nil
+	}
+	return schema.AssistantMessage("done", nil), nil
+}
+
+func (m *loopingTaskToolCallingModel) Stream(ctx context.Context, input []*schema.Message, opts ...model.Option) (*schema.StreamReader[*schema.Message], error) {
+	msg, err := m.Generate(ctx, input, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return schema.StreamReaderFromArray([]*schema.Message{msg}), nil
+}
+
+func (m *loopingTaskToolCallingModel) WithTools(tools []*schema.ToolInfo) (model.ToolCallingChatModel, error) {
+	m.toolNames = collectToolNames(tools)
+	return m, nil
+}
+
+func (m *loopingTaskToolCallingModel) captureTools(opts ...model.Option) {
+	options := model.GetCommonOptions(nil, opts...)
+	m.toolNames = collectToolNames(options.Tools)
+}
+
+type testSubAgent struct {
+	name string
+}
+
+func (a *testSubAgent) Name(context.Context) string        { return a.name }
+func (a *testSubAgent) Description(context.Context) string { return "test subagent" }
+
+func (a *testSubAgent) Run(_ context.Context, _ *adk.AgentInput, _ ...adk.AgentRunOption) *adk.AsyncIterator[*adk.AgentEvent] {
+	iter, gen := adk.NewAsyncIteratorPair[*adk.AgentEvent]()
+	go func() {
+		defer gen.Close()
+		gen.Send(adk.EventFromMessage(schema.AssistantMessage("subagent ok", nil), nil, schema.Assistant, ""))
+	}()
+	return iter
 }
 
 func drainAgentEvents(iter *adk.AsyncIterator[*adk.AgentEvent]) error {

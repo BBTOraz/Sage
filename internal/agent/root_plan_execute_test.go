@@ -2,9 +2,12 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/cloudwego/eino/adk"
+	"github.com/cloudwego/eino/adk/prebuilt/planexecute"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 )
@@ -91,6 +94,28 @@ func TestPlanExecuteRootFlow(t *testing.T) {
 		if model.state.callKinds[idx] != kind {
 			t.Fatalf("model call kinds = %v, want %v", model.state.callKinds, want)
 		}
+	}
+}
+
+func TestPlanExecuteRootUsesIterationCap200(t *testing.T) {
+	ctx := context.Background()
+	model := &replanningToolCallingModel{
+		state: &replanningToolCallingState{
+			respondAfterReplans: 11,
+		},
+	}
+	root, err := NewRootPlanExecute(ctx, model, &loopingExecutorAgent{})
+	if err != nil {
+		t.Fatalf("NewRootPlanExecute() error = %v", err)
+	}
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: root})
+	if err := drainAgentEvents(runner.Query(ctx, "long running task")); err != nil {
+		t.Fatalf("runner.Query() error = %v", err)
+	}
+
+	if model.state.replannerCalls != 11 {
+		t.Fatalf("replanner calls = %d, want %d", model.state.replannerCalls, 11)
 	}
 }
 
@@ -198,4 +223,81 @@ func collectToolInfoNames(tools []*schema.ToolInfo) []string {
 		names = append(names, toolInfo.Name)
 	}
 	return names
+}
+
+type replanningToolCallingModel struct {
+	boundToolNames []string
+	state          *replanningToolCallingState
+}
+
+type replanningToolCallingState struct {
+	replannerCalls      int
+	respondAfterReplans int
+}
+
+func (m *replanningToolCallingModel) Generate(_ context.Context, _ []*schema.Message, opts ...model.Option) (*schema.Message, error) {
+	callKind := classifyPlanExecuteCall(m.boundToolNames, opts...)
+	switch callKind {
+	case "planner":
+		return schema.AssistantMessage("", []schema.ToolCall{{
+			ID:   "plan-1",
+			Type: "function",
+			Function: schema.FunctionCall{
+				Name:      "plan",
+				Arguments: `{"steps":["inspect architecture"]}`,
+			},
+		}}), nil
+	case "replanner":
+		m.state.replannerCalls++
+		if m.state.replannerCalls >= m.state.respondAfterReplans {
+			return schema.AssistantMessage("", []schema.ToolCall{{
+				ID:   fmt.Sprintf("respond-%d", m.state.replannerCalls),
+				Type: "function",
+				Function: schema.FunctionCall{
+					Name:      "respond",
+					Arguments: `{"response":"final answer"}`,
+				},
+			}}), nil
+		}
+		return schema.AssistantMessage("", []schema.ToolCall{{
+			ID:   fmt.Sprintf("plan-%d", m.state.replannerCalls+1),
+			Type: "function",
+			Function: schema.FunctionCall{
+				Name:      "plan",
+				Arguments: `{"steps":["inspect architecture"]}`,
+			},
+		}}), nil
+	default:
+		return schema.AssistantMessage("unexpected call kind", nil), nil
+	}
+}
+
+func (m *replanningToolCallingModel) Stream(ctx context.Context, input []*schema.Message, opts ...model.Option) (*schema.StreamReader[*schema.Message], error) {
+	msg, err := m.Generate(ctx, input, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return schema.StreamReaderFromArray([]*schema.Message{msg}), nil
+}
+
+func (m *replanningToolCallingModel) WithTools(tools []*schema.ToolInfo) (model.ToolCallingChatModel, error) {
+	return &replanningToolCallingModel{
+		boundToolNames: collectToolInfoNames(tools),
+		state:          m.state,
+	}, nil
+}
+
+type loopingExecutorAgent struct{}
+
+func (a *loopingExecutorAgent) Name(context.Context) string        { return "looping-executor" }
+func (a *loopingExecutorAgent) Description(context.Context) string { return "looping executor" }
+
+func (a *loopingExecutorAgent) Run(ctx context.Context, _ *adk.AgentInput, _ ...adk.AgentRunOption) *adk.AsyncIterator[*adk.AgentEvent] {
+	iter, gen := adk.NewAsyncIteratorPair[*adk.AgentEvent]()
+	go func() {
+		defer gen.Close()
+		adk.AddSessionValue(ctx, planexecute.ExecutedStepSessionKey, "executor result")
+		gen.Send(adk.EventFromMessage(schema.AssistantMessage("executor result", nil), nil, schema.Assistant, ""))
+	}()
+	return iter
 }

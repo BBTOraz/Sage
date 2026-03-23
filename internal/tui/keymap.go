@@ -10,6 +10,8 @@ type keyMap struct {
 	Quit          key.Binding
 	PageUp        key.Binding
 	PageDown      key.Binding
+	NextTool      key.Binding
+	PrevTool      key.Binding
 	ToggleLeft    key.Binding
 	ToggleRight   key.Binding
 	ToggleConfirm key.Binding
@@ -20,6 +22,7 @@ func (k *keyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.Send,
 		k.NewLine,
+		k.NextTool,
 		k.Quit,
 		k.PageUp,
 		k.PageDown,
@@ -28,7 +31,7 @@ func (k *keyMap) ShortHelp() []key.Binding {
 
 func (k *keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Send, k.NewLine},
+		{k.Send, k.NewLine, k.NextTool, k.PrevTool},
 		{k.ToggleLeft, k.ToggleRight, k.ToggleConfirm},
 		{k.PageUp, k.PageDown},
 		{k.Quit},
@@ -55,6 +58,14 @@ var keys = keyMap{
 	PageDown: key.NewBinding(
 		key.WithKeys("pgdown"),
 		key.WithHelp("pgdn", "scroll down"),
+	),
+	NextTool: key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "next tool"),
+	),
+	PrevTool: key.NewBinding(
+		key.WithKeys("shift+tab"),
+		key.WithHelp("shift+tab", "prev tool"),
 	),
 	ToggleLeft: key.NewBinding(
 		key.WithKeys("left", "h"),

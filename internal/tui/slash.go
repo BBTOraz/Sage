@@ -23,9 +23,17 @@ var availableSlashCommands = []slashCommand{
 		Usage:       "/ingest <directory>",
 		Description: "index documents from a directory in background",
 	},
+	{
+		Name:        "session",
+		Usage:       "/session",
+		Description: "open the session picker and switch chats",
+	},
 }
 
 func (m *model) updateSlashState() {
+	m.syncDirSuggestFromArea()
+	m.syncSessionSuggestFromArea()
+
 	value := strings.TrimSpace(m.area.Value())
 	if !strings.HasPrefix(value, "/") {
 		m.slash = slashState{}

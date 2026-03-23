@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,11 +43,7 @@ func NewManager(mode approval.Mode, runner AgentRunner, ingester pipeline.Ingest
 		ingester:      ingester,
 		ingestQueue:   make(chan ingestJob, 32),
 		ingestWorkers: 2,
-		session: Session{
-			ID:    SessionID(uuid.New().String()),
-			Mode:  mode,
-			State: SessionStateIdle,
-		},
+		session:       newSession(mode),
 	}
 }
 
@@ -56,8 +53,45 @@ func (m *Manager) GetSession() Session {
 	return m.session
 }
 
+func (m *Manager) RestoreLatestSession(ctx context.Context) (SessionSnapshot, []Event, error) {
+	session, ok, err := m.historyStore.LatestSession(ctx)
+	if err != nil || !ok {
+		return SessionSnapshot{}, nil, err
+	}
+
+	return m.restoreStoredSession(ctx, session)
+}
+
+func (m *Manager) RestoreSession(ctx context.Context, sessionID SessionID) (SessionSnapshot, []Event, error) {
+	session, ok, err := m.historyStore.LoadSession(ctx, sessionID)
+	if err != nil || !ok {
+		return SessionSnapshot{}, nil, err
+	}
+
+	return m.restoreStoredSession(ctx, session)
+}
+
+func (m *Manager) ListSessions(ctx context.Context) ([]SessionSummary, error) {
+	return m.historyStore.ListSessions(ctx)
+}
+
+func (m *Manager) StartNewSession() SessionSnapshot {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.session = newSession(m.session.Mode)
+	m.activeRun = nil
+	m.pendingApproval = nil
+	return m.session
+}
+
 func (m *Manager) StartRun(ctx context.Context, in StartRunRequest) (RunHandle, error) {
 	runId := uuid.New().String()
+	turns, err := m.historyStore.ListTranscriptTurns(ctx, m.GetSession().ID)
+	if err != nil {
+		return RunHandle{}, err
+	}
+	messages := buildSessionMemoryMessages(turns, in.Input)
 
 	now := time.Now().UTC()
 	m.mu.Lock()
@@ -80,8 +114,15 @@ func (m *Manager) StartRun(ctx context.Context, in StartRunRequest) (RunHandle, 
 	if err := m.historyStore.SaveRun(ctx, runSnapshot); err != nil {
 		return RunHandle{}, err
 	}
+	if err := m.historyStore.CreateTranscriptTurn(ctx, SessionTranscriptTurn{
+		SessionID: sessionSnapshot.ID,
+		RunID:     RunID(runId),
+		UserInput: in.Input,
+	}); err != nil {
+		return RunHandle{}, err
+	}
 
-	iter := m.runner.Query(ctx, in.Input, adk.WithCheckPointID(runId))
+	iter := m.runner.Run(ctx, messages, adk.WithCheckPointID(runId))
 
 	return RunHandle{
 		ID:     RunID(runId),
@@ -215,6 +256,16 @@ func (m *Manager) streamAgentEvents(ctx context.Context, runID RunID, start Even
 			return true
 		}
 
+		var currentAssistantMessage strings.Builder
+		lastCompletedAssistantMessage := ""
+		flushAssistantMessage := func() {
+			if currentAssistantMessage.Len() == 0 {
+				return
+			}
+			lastCompletedAssistantMessage = currentAssistantMessage.String()
+			currentAssistantMessage.Reset()
+		}
+
 		if !emit(Event{
 			RunID:  runID,
 			Status: RunStatusRunning,
@@ -225,6 +276,16 @@ func (m *Manager) streamAgentEvents(ctx context.Context, runID RunID, start Even
 		for {
 			event, ok := iter.Next()
 			if !ok {
+				if err := m.completeTranscriptTurn(ctx, runID, lastCompletedAssistantMessage); err != nil {
+					m.finishRun(ctx, runID, RunStatusFailed)
+					emit(Event{
+						RunID:  runID,
+						Status: RunStatusFailed,
+						Type:   EventRunFailed,
+						Err:    err,
+					})
+					break
+				}
 				m.finishRun(ctx, runID, RunStatusCompleted)
 				emit(Event{
 					RunID:  runID,
@@ -294,6 +355,7 @@ func (m *Manager) streamAgentEvents(ctx context.Context, runID RunID, start Even
 						}) {
 							return
 						}
+						flushAssistantMessage()
 						break
 					}
 					if err != nil {
@@ -312,9 +374,15 @@ func (m *Manager) streamAgentEvents(ctx context.Context, runID RunID, start Even
 						Status: RunStatusRunning,
 						Type:   EventAssistantChunk,
 						Text:   chunk.Content,
+						Payload: buildEventPayload(
+							event,
+							event.Output.MessageOutput,
+							chunk,
+						),
 					}) {
 						return
 					}
+					currentAssistantMessage.WriteString(chunk.Content)
 				}
 			}
 
@@ -335,9 +403,15 @@ func (m *Manager) streamAgentEvents(ctx context.Context, runID RunID, start Even
 					Status: RunStatusRunning,
 					Type:   EventAssistantChunk,
 					Text:   msg.Content,
+					Payload: buildEventPayload(
+						event,
+						event.Output.MessageOutput,
+						msg,
+					),
 				}) {
 					return
 				}
+				currentAssistantMessage.WriteString(msg.Content)
 				if !emit(Event{
 					RunID:  runID,
 					Type:   EventAssistantDone,
@@ -345,11 +419,19 @@ func (m *Manager) streamAgentEvents(ctx context.Context, runID RunID, start Even
 				}) {
 					return
 				}
+				flushAssistantMessage()
 			}
 		}
 	}()
 
 	return out
+}
+
+func (m *Manager) completeTranscriptTurn(ctx context.Context, runID RunID, assistantOutput string) error {
+	if strings.TrimSpace(assistantOutput) == "" {
+		return nil
+	}
+	return m.historyStore.CompleteTranscriptTurn(ctx, runID, assistantOutput)
 }
 
 func (m *Manager) finishRun(ctx context.Context, runID RunID, status RunStatus) {
@@ -389,4 +471,54 @@ func (m *Manager) markRunInterrupted(ctx context.Context, runID RunID) {
 		_ = m.historyStore.SaveRun(ctx, *runSnapshot)
 	}
 	_ = m.historyStore.SaveSession(ctx, sessionSnapshot)
+}
+
+func (m *Manager) restoreStoredSession(ctx context.Context, session SessionSnapshot) (SessionSnapshot, []Event, error) {
+	records, err := m.historyStore.ListEvents(ctx, session.ID)
+	if err != nil {
+		return SessionSnapshot{}, nil, err
+	}
+
+	events := make([]Event, 0, len(records))
+	var pending *PendingApproval
+	var activeRunStatus RunStatus
+
+	for _, record := range records {
+		event, err := eventFromHistoryRecord(record)
+		if err != nil {
+			return SessionSnapshot{}, nil, err
+		}
+		events = append(events, event)
+		if event.RunID == session.ActiveRunID {
+			activeRunStatus = event.Status
+		}
+		if event.Type == EventRunInterrupted && event.Approval != nil {
+			approval := *event.Approval
+			pending = &approval
+		}
+	}
+
+	m.mu.Lock()
+	m.session = session
+	m.pendingApproval = pending
+	if session.ActiveRunID != "" {
+		m.activeRun = &Run{
+			ID:        session.ActiveRunID,
+			SessionID: session.ID,
+			Status:    activeRunStatus,
+		}
+	} else {
+		m.activeRun = nil
+	}
+	m.mu.Unlock()
+
+	return session, events, nil
+}
+
+func newSession(mode approval.Mode) Session {
+	return Session{
+		ID:    SessionID(uuid.New().String()),
+		Mode:  mode,
+		State: SessionStateIdle,
+	}
 }

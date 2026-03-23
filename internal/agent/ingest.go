@@ -26,6 +26,8 @@ func (a *Application) newIngester(ctx context.Context) (*pipeline.LocalIngester,
 	surveyor := loader.NewSurveyor(map[string]loader.FileType{
 		".pdf":  loader.FileTypePDF,
 		".docx": loader.FileTypeDOCX,
+		".md":   loader.FileTypeMD,
+		".txt":  loader.FileTypeTXT,
 	})
 
 	parser, err := newDocumentParser(ctx)

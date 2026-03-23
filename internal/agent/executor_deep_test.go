@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"bilge-lib/internal/approval"
@@ -22,7 +23,6 @@ func TestExecutorDeepFilesystemRegistersFileToolsWithoutExecute(t *testing.T) {
 		Capabilities: ExecutorDeepCapabilities{
 			Filesystem: ExecutorDeepFilesystemConfig{
 				Enabled:       true,
-				WorkspaceRoot: t.TempDir(),
 				EnableExecute: false,
 			},
 		},
@@ -110,6 +110,56 @@ func TestExecutorDeepUsesIterationCap200(t *testing.T) {
 
 	if model.toolCallCount != 21 {
 		t.Fatalf("tool call count = %d, want %d", model.toolCallCount, 21)
+	}
+}
+
+func TestExecutorDeepUnknownToolFallsBackToSoftObservation(t *testing.T) {
+	ctx := context.Background()
+	model := &unknownToolCallingModel{
+		unknownToolName: "run_shell_command",
+	}
+
+	agent, err := NewExecutorDeep(ctx, ExecutorDeepConfig{
+		Model:        model,
+		ApprovalMode: approval.Guard,
+	})
+	if err != nil {
+		t.Fatalf("NewExecutorDeep() error = %v", err)
+	}
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{
+		Agent:           agent,
+		EnableStreaming: false,
+	})
+
+	if err := drainAgentEvents(runner.Query(ctx, "inspect repo")); err != nil {
+		t.Fatalf("runner.Query() error = %v", err)
+	}
+
+	if model.callCount < 2 {
+		t.Fatalf("call count = %d, want model to receive tool observation and continue", model.callCount)
+	}
+}
+
+func TestMergeExecutorContextIntoMessagesAppendsToSystemPrompt(t *testing.T) {
+	input := []*schema.Message{
+		schema.SystemMessage("base instruction"),
+		schema.UserMessage("run task"),
+	}
+
+	merged := mergeExecutorContextIntoMessages(input, "## PlanExecute Executor Context\nCurrent step:\ninspect repo")
+
+	if len(merged) != 2 {
+		t.Fatalf("merged len = %d, want %d", len(merged), 2)
+	}
+	if !strings.Contains(merged[0].Content, "base instruction") {
+		t.Fatalf("system prompt = %q, want original instruction", merged[0].Content)
+	}
+	if !strings.Contains(merged[0].Content, "## PlanExecute Executor Context") {
+		t.Fatalf("system prompt = %q, want injected executor context", merged[0].Content)
+	}
+	if input[0].Content != "base instruction" {
+		t.Fatalf("original input mutated to %q", input[0].Content)
 	}
 }
 
@@ -218,4 +268,36 @@ func drainAgentEvents(iter *adk.AsyncIterator[*adk.AgentEvent]) error {
 			return event.Err
 		}
 	}
+}
+
+type unknownToolCallingModel struct {
+	unknownToolName string
+	callCount       int
+}
+
+func (m *unknownToolCallingModel) Generate(_ context.Context, input []*schema.Message, _ ...model.Option) (*schema.Message, error) {
+	m.callCount++
+	if m.callCount == 1 {
+		return schema.AssistantMessage("", []schema.ToolCall{{
+			ID:   "unknown-1",
+			Type: "function",
+			Function: schema.FunctionCall{
+				Name:      m.unknownToolName,
+				Arguments: `{"command":"dir"}`,
+			},
+		}}), nil
+	}
+	return schema.AssistantMessage("recovered", nil), nil
+}
+
+func (m *unknownToolCallingModel) Stream(ctx context.Context, input []*schema.Message, opts ...model.Option) (*schema.StreamReader[*schema.Message], error) {
+	msg, err := m.Generate(ctx, input, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return schema.StreamReaderFromArray([]*schema.Message{msg}), nil
+}
+
+func (m *unknownToolCallingModel) WithTools(_ []*schema.ToolInfo) (model.ToolCallingChatModel, error) {
+	return m, nil
 }

@@ -17,8 +17,7 @@ func TestMiddlewareStackExecutorDeep(t *testing.T) {
 		Model:        &stubBaseModel{},
 		Capabilities: ExecutorDeepCapabilities{
 			Filesystem: ExecutorDeepFilesystemConfig{
-				Enabled:       true,
-				WorkspaceRoot: t.TempDir(),
+				Enabled: true,
 			},
 		},
 	})
@@ -44,8 +43,7 @@ func TestMiddlewareStackDocAgent(t *testing.T) {
 		ApprovalMode: approval.Guard,
 		Capabilities: ExecutorDeepCapabilities{
 			Filesystem: ExecutorDeepFilesystemConfig{
-				Enabled:       true,
-				WorkspaceRoot: t.TempDir(),
+				Enabled: true,
 			},
 		},
 	})
@@ -62,6 +60,25 @@ func TestMiddlewareStackDocAgent(t *testing.T) {
 
 	if idx := indexOfHandler(typeNames, "summarization."); idx >= 0 {
 		t.Fatalf("doc agent handlers = %v, summarization must be absent", typeNames)
+	}
+}
+
+func TestFilesystemCapabilityUsesRawLocalBackendWithoutWorkspaceWrapper(t *testing.T) {
+	runtimeCapabilities, err := buildExecutorDeepRuntimeCapabilities(context.Background(), ExecutorDeepCapabilities{
+		Filesystem: ExecutorDeepFilesystemConfig{
+			Enabled: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildExecutorDeepRuntimeCapabilities() error = %v", err)
+	}
+	if runtimeCapabilities.Backend == nil {
+		t.Fatal("runtimeCapabilities.Backend = nil, want local backend")
+	}
+
+	typeName := reflect.TypeOf(runtimeCapabilities.Backend).String()
+	if strings.Contains(typeName, "workspaceBackend") {
+		t.Fatalf("backend type = %q, workspace wrapper must be removed", typeName)
 	}
 }
 

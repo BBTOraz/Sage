@@ -12,6 +12,8 @@ import (
 const defaultAgentIterationCap = 200
 
 func NewRootPlanExecute(ctx context.Context, plannerModel model.ToolCallingChatModel, executor adk.Agent) (adk.ResumableAgent, error) {
+	plannerModel = wrapRepairingToolCallingModel(plannerModel)
+
 	planner, err := planexecute.NewPlanner(ctx, &planexecute.PlannerConfig{
 		ToolCallingChatModel: plannerModel,
 	})

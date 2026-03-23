@@ -12,6 +12,7 @@ import (
 	"github.com/cloudwego/eino/adk/prebuilt/planexecute"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/compose"
+	"github.com/cloudwego/eino/schema"
 )
 
 type ExecutorDeepConfig struct {
@@ -34,15 +35,13 @@ func NewExecutorDeep(ctx context.Context, cfg ExecutorDeepConfig) (adk.Resumable
 	if err != nil {
 		return nil, err
 	}
-	handlers = append(handlers, &executorPlanExecuteContextMiddleware{
-		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
-	})
+	wrappedModel := wrapExecutorContextModel(cfg.Model)
 
-	return deep.New(ctx, &deep.Config{
+	inner, err := deep.New(ctx, &deep.Config{
 		Name:           "sage",
 		Description:    executorDeepDescription,
 		Instruction:    executorDeepInstruction,
-		ChatModel:      cfg.Model,
+		ChatModel:      wrappedModel,
 		MaxIteration:   defaultAgentIterationCap,
 		SubAgents:      cfg.SubAgents,
 		Handlers:       handlers,
@@ -53,9 +52,14 @@ func NewExecutorDeep(ctx context.Context, cfg ExecutorDeepConfig) (adk.Resumable
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig: compose.ToolsNodeConfig{
 				UnknownToolsHandler: middleware2.UnknownToolHandler(),
+				ToolArgumentsHandler: toolArgumentsRepairHandler(),
 			},
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	return wrapUnknownToolRecoveryAgent(inner).(adk.ResumableAgent), nil
 }
 
 func (a *Application) ExecutorDeep(ctx context.Context) (adk.ResumableAgent, error) {
@@ -72,36 +76,16 @@ func (a *Application) ExecutorDeep(ctx context.Context) (adk.ResumableAgent, err
 	})
 }
 
-type executorPlanExecuteContextMiddleware struct {
-	*adk.BaseChatModelAgentMiddleware
-}
-
-func (m *executorPlanExecuteContextMiddleware) BeforeAgent(ctx context.Context, runCtx *adk.ChatModelAgentContext) (context.Context, *adk.ChatModelAgentContext, error) {
-	planValue, ok := adk.GetSessionValue(ctx, planexecute.PlanSessionKey)
-	if !ok {
-		return ctx, runCtx, nil
+func wrapExecutorContextModel(base model.BaseChatModel) model.BaseChatModel {
+	toolCalling, ok := base.(model.ToolCallingChatModel)
+	if ok {
+		return &executorContextToolCallingModel{
+			base: executorContextBaseModel{base: toolCalling},
+			tool: toolCalling,
+		}
 	}
 
-	plan, ok := planValue.(planexecute.Plan)
-	if !ok {
-		return ctx, runCtx, fmt.Errorf("planexecute plan session value has unexpected type %T", planValue)
-	}
-
-	userInput := getExecutorUserInput(ctx)
-	executedSteps := getExecutedSteps(ctx)
-	executionContext, err := formatExecutorPlanExecuteContext(userInput, plan, executedSteps)
-	if err != nil {
-		return ctx, runCtx, err
-	}
-
-	nextRunCtx := *runCtx
-	if nextRunCtx.Instruction == "" {
-		nextRunCtx.Instruction = executionContext
-	} else {
-		nextRunCtx.Instruction = nextRunCtx.Instruction + "\n\n" + executionContext
-	}
-
-	return ctx, &nextRunCtx, nil
+	return &executorContextBaseModel{base: base}
 }
 
 func getExecutorUserInput(ctx context.Context) []adk.Message {
@@ -130,6 +114,102 @@ func getExecutedSteps(ctx context.Context) []planexecute.ExecutedStep {
 	}
 
 	return executedSteps
+}
+
+func executorPlanExecuteContextFromSession(ctx context.Context) (string, error) {
+	planValue, ok := adk.GetSessionValue(ctx, planexecute.PlanSessionKey)
+	if !ok {
+		return "", nil
+	}
+
+	plan, ok := planValue.(planexecute.Plan)
+	if !ok {
+		return "", fmt.Errorf("planexecute plan session value has unexpected type %T", planValue)
+	}
+
+	return formatExecutorPlanExecuteContext(
+		getExecutorUserInput(ctx),
+		plan,
+		getExecutedSteps(ctx),
+	)
+}
+
+func mergeExecutorContextIntoMessages(input []*schema.Message, executionContext string) []*schema.Message {
+	if strings.TrimSpace(executionContext) == "" {
+		return input
+	}
+
+	if len(input) == 0 {
+		return []*schema.Message{schema.SystemMessage(executionContext)}
+	}
+
+	cloned := make([]*schema.Message, len(input))
+	copy(cloned, input)
+
+	if cloned[0] != nil && cloned[0].Role == schema.System {
+		msgCopy := *cloned[0]
+		if strings.TrimSpace(msgCopy.Content) == "" {
+			msgCopy.Content = executionContext
+		} else {
+			msgCopy.Content = msgCopy.Content + "\n\n" + executionContext
+		}
+		cloned[0] = &msgCopy
+		return cloned
+	}
+
+	return append([]*schema.Message{schema.SystemMessage(executionContext)}, cloned...)
+}
+
+type executorContextBaseModel struct {
+	base model.BaseChatModel
+}
+
+func (m *executorContextBaseModel) Generate(ctx context.Context, input []*schema.Message, opts ...model.Option) (*schema.Message, error) {
+	merged, err := m.withExecutorContext(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return m.base.Generate(ctx, merged, opts...)
+}
+
+func (m *executorContextBaseModel) Stream(ctx context.Context, input []*schema.Message, opts ...model.Option) (*schema.StreamReader[*schema.Message], error) {
+	merged, err := m.withExecutorContext(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return m.base.Stream(ctx, merged, opts...)
+}
+
+func (m *executorContextBaseModel) withExecutorContext(ctx context.Context, input []*schema.Message) ([]*schema.Message, error) {
+	executionContext, err := executorPlanExecuteContextFromSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return mergeExecutorContextIntoMessages(input, executionContext), nil
+}
+
+type executorContextToolCallingModel struct {
+	base executorContextBaseModel
+	tool model.ToolCallingChatModel
+}
+
+func (m *executorContextToolCallingModel) Generate(ctx context.Context, input []*schema.Message, opts ...model.Option) (*schema.Message, error) {
+	return m.base.Generate(ctx, input, opts...)
+}
+
+func (m *executorContextToolCallingModel) Stream(ctx context.Context, input []*schema.Message, opts ...model.Option) (*schema.StreamReader[*schema.Message], error) {
+	return m.base.Stream(ctx, input, opts...)
+}
+
+func (m *executorContextToolCallingModel) WithTools(tools []*schema.ToolInfo) (model.ToolCallingChatModel, error) {
+	bound, err := m.tool.WithTools(tools)
+	if err != nil {
+		return nil, err
+	}
+	return &executorContextToolCallingModel{
+		base: executorContextBaseModel{base: bound},
+		tool: bound,
+	}, nil
 }
 
 func formatExecutorPlanExecuteContext(userInput []adk.Message, plan planexecute.Plan, executedSteps []planexecute.ExecutedStep) (string, error) {

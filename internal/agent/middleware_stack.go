@@ -1,14 +1,12 @@
 package agent
 
 import (
-	"bilge-lib/core"
 	"bilge-lib/internal/agent/middlewares"
 	"bilge-lib/internal/approval"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	localfs "github.com/cloudwego/eino-ext/adk/backend/local"
 	"github.com/cloudwego/eino/adk"
@@ -31,7 +29,6 @@ type ExecutorDeepCapabilities struct {
 
 type ExecutorDeepFilesystemConfig struct {
 	Enabled       bool
-	WorkspaceRoot string
 	EnableExecute bool
 }
 
@@ -87,19 +84,13 @@ func BuildDocAgentHandlers(ctx context.Context, cfg AgentHandlerConfig) ([]adk.C
 	return handlers, nil
 }
 
-func defaultExecutorDeepCapabilities(env core.EnvConfig) (ExecutorDeepCapabilities, error) {
-	rootDir, err := resolveWorkspaceRoot(env.WorkspaceRoot)
-	if err != nil {
-		return ExecutorDeepCapabilities{}, err
-	}
-
+func defaultExecutorDeepCapabilities() ExecutorDeepCapabilities {
 	return ExecutorDeepCapabilities{
 		Filesystem: ExecutorDeepFilesystemConfig{
 			Enabled:       true,
-			WorkspaceRoot: rootDir,
 			EnableExecute: false,
 		},
-	}, nil
+	}
 }
 
 func buildExecutorDeepRuntimeCapabilities(ctx context.Context, cfg ExecutorDeepCapabilities) (*executorDeepRuntimeCapabilities, error) {
@@ -129,18 +120,13 @@ func buildExecutorDeepFilesystemCapability(ctx context.Context, cfg ExecutorDeep
 		return nil, fmt.Errorf("executor deep execute capability is not enabled in this migration stage")
 	}
 
-	rootDir, err := resolveWorkspaceRoot(cfg.WorkspaceRoot)
-	if err != nil {
-		return nil, err
-	}
-
 	backend, err := localfs.NewBackend(ctx, &localfs.Config{})
 	if err != nil {
 		return nil, err
 	}
 
 	return &executorDeepFilesystemCapability{
-		Backend: newWorkspaceBackend(rootDir, backend),
+		Backend: backend,
 	}, nil
 }
 
@@ -153,7 +139,7 @@ func buildReductionHandler(ctx context.Context, capabilities ExecutorDeepCapabil
 		return nil, nil
 	}
 
-	rootDir, err := resolveWorkspaceRoot(capabilities.Filesystem.WorkspaceRoot)
+	rootDir, err := resolveReductionRoot()
 	if err != nil {
 		return nil, err
 	}
@@ -181,134 +167,10 @@ func buildSummarizationHandler(ctx context.Context, cfg AgentHandlerConfig) (adk
 	})
 }
 
-func resolveWorkspaceRoot(rootDir string) (string, error) {
-	rootDir = strings.TrimSpace(rootDir)
-	if rootDir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("resolve workspace root: %w", err)
-		}
-		rootDir = cwd
-	}
-
-	rootDir, err := filepath.Abs(rootDir)
+func resolveReductionRoot() (string, error) {
+	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("resolve workspace root: %w", err)
+		return "", fmt.Errorf("resolve reduction root: %w", err)
 	}
-	rootDir = filepath.Clean(rootDir)
-
-	info, err := os.Stat(rootDir)
-	if err != nil {
-		return "", fmt.Errorf("workspace root %q: %w", rootDir, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("workspace root %q is not a directory", rootDir)
-	}
-
-	return rootDir, nil
-}
-
-type workspaceBackend struct {
-	root  string
-	inner adkfs.Backend
-}
-
-func newWorkspaceBackend(root string, inner adkfs.Backend) adkfs.Backend {
-	return &workspaceBackend{
-		root:  root,
-		inner: inner,
-	}
-}
-
-func (b *workspaceBackend) LsInfo(ctx context.Context, req *adkfs.LsInfoRequest) ([]adkfs.FileInfo, error) {
-	path, err := b.resolvePath(req.Path)
-	if err != nil {
-		return nil, err
-	}
-	return b.inner.LsInfo(ctx, &adkfs.LsInfoRequest{Path: path})
-}
-
-func (b *workspaceBackend) Read(ctx context.Context, req *adkfs.ReadRequest) (*adkfs.FileContent, error) {
-	path, err := b.resolvePath(req.FilePath)
-	if err != nil {
-		return nil, err
-	}
-	return b.inner.Read(ctx, &adkfs.ReadRequest{
-		FilePath: path,
-		Offset:   req.Offset,
-		Limit:    req.Limit,
-	})
-}
-
-func (b *workspaceBackend) GrepRaw(ctx context.Context, req *adkfs.GrepRequest) ([]adkfs.GrepMatch, error) {
-	path, err := b.resolvePath(req.Path)
-	if err != nil {
-		return nil, err
-	}
-	return b.inner.GrepRaw(ctx, &adkfs.GrepRequest{
-		Pattern:         req.Pattern,
-		Path:            path,
-		Glob:            req.Glob,
-		FileType:        req.FileType,
-		CaseInsensitive: req.CaseInsensitive,
-		EnableMultiline: req.EnableMultiline,
-		AfterLines:      req.AfterLines,
-		BeforeLines:     req.BeforeLines,
-	})
-}
-
-func (b *workspaceBackend) GlobInfo(ctx context.Context, req *adkfs.GlobInfoRequest) ([]adkfs.FileInfo, error) {
-	path, err := b.resolvePath(req.Path)
-	if err != nil {
-		return nil, err
-	}
-	return b.inner.GlobInfo(ctx, &adkfs.GlobInfoRequest{
-		Pattern: req.Pattern,
-		Path:    path,
-	})
-}
-
-func (b *workspaceBackend) Write(ctx context.Context, req *adkfs.WriteRequest) error {
-	path, err := b.resolvePath(req.FilePath)
-	if err != nil {
-		return err
-	}
-	return b.inner.Write(ctx, &adkfs.WriteRequest{
-		FilePath: path,
-		Content:  req.Content,
-	})
-}
-
-func (b *workspaceBackend) Edit(ctx context.Context, req *adkfs.EditRequest) error {
-	path, err := b.resolvePath(req.FilePath)
-	if err != nil {
-		return err
-	}
-	return b.inner.Edit(ctx, &adkfs.EditRequest{
-		FilePath:   path,
-		OldString:  req.OldString,
-		NewString:  req.NewString,
-		ReplaceAll: req.ReplaceAll,
-	})
-}
-
-func (b *workspaceBackend) resolvePath(path string) (string, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return b.root, nil
-	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(b.root, path)
-	}
-
-	cleanPath := filepath.Clean(path)
-	relPath, err := filepath.Rel(b.root, cleanPath)
-	if err != nil {
-		return "", fmt.Errorf("resolve path %q: %w", path, err)
-	}
-	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
-		return "", fmt.Errorf("path %q escapes workspace root %q", path, b.root)
-	}
-
-	return cleanPath, nil
+	return filepath.Join(cwd, ".sage", "middleware", "reduction"), nil
 }

@@ -129,28 +129,91 @@ func (m *model) hasActiveIngestJobs() bool {
 }
 
 func (m *model) activityDockHeight() int {
-	if len(m.activities) == 0 {
+	lines := m.activityDockLines(maxInt(24, m.width-2), m.spinner.View())
+	if len(lines) == 0 {
 		return 0
 	}
 
-	lines := minInt(len(m.activities), 4) + 2
-	return lines
+	return len(lines) + 2
 }
 
 func (m *model) activityDockView(width int, spinnerView string) string {
-	if len(m.activities) == 0 {
+	lines := m.activityDockLines(width, spinnerView)
+	if len(lines) == 0 {
 		return ""
 	}
 
-	items := make([]string, 0, minInt(len(m.activities), 4))
-	for i := 0; i < len(m.activities) && i < 4; i++ {
-		items = append(items, renderActivityLine(m.activities[i], spinnerView, width-8))
-	}
-
-	content := strings.Join(items, "\n")
+	content := strings.Join(lines, "\n")
 	block := activityBlockStyle.Width(maxInt(24, width-2)).Render(content)
 	block = injectBorderTitle(block, activityTitleStyle.Render("Activity"), "")
 	return indentBlock(block, " ")
+}
+
+func (m *model) activityDockLines(width int, spinnerView string) []string {
+	maxItems := 4
+	lines := make([]string, 0, maxItems+2)
+	usedItems := 0
+
+	agents := m.activeAgentActivities()
+	if len(agents) > 0 {
+		lines = append(lines, activitySectionStyle.Render("Agents"))
+		for i := 0; i < len(agents) && usedItems < maxItems; i++ {
+			lines = append(lines, renderActivityLine(agents[i], spinnerView, width-8))
+			usedItems++
+		}
+	}
+
+	if len(m.activities) > 0 && usedItems < maxItems {
+		lines = append(lines, activitySectionStyle.Render("Jobs"))
+		for i := 0; i < len(m.activities) && usedItems < maxItems; i++ {
+			lines = append(lines, renderActivityLine(m.activities[i], spinnerView, width-8))
+			usedItems++
+		}
+	}
+
+	return lines
+}
+
+func (m *model) activeAgentActivities() []activityEntry {
+	if m.transcript == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	entries := make([]activityEntry, 0, 4)
+	now := time.Now()
+
+	for _, msg := range m.messages {
+		if msg.Kind != MessageRun {
+			continue
+		}
+
+		leaf := m.transcript.nodeForID(m.transcript.lastAgentByRun[msg.RunID])
+		if leaf == nil || leaf.Kind != transcriptNodeAgent || leaf.Status != string(runtime.RunStatusRunning) {
+			continue
+		}
+		if _, ok := seen[leaf.ID]; ok {
+			continue
+		}
+
+		title := leaf.AgentName
+		if displayName, ok := userFacingAgentName(leaf); ok {
+			title = displayName
+		}
+		if title == "" {
+			title = "agent"
+		}
+
+		entries = append(entries, activityEntry{
+			ID:        "agent:" + leaf.ID,
+			Title:     title,
+			Status:    string(runtime.RunStatusRunning),
+			UpdatedAt: now,
+		})
+		seen[leaf.ID] = struct{}{}
+	}
+
+	return entries
 }
 
 func renderActivityLine(entry activityEntry, spinnerView string, width int) string {
@@ -161,13 +224,16 @@ func renderActivityLine(entry activityEntry, spinnerView string, width int) stri
 	case string(runtime.IngestStatusQueued):
 		icon = "◌"
 		iconStyle = activityQueuedStyle
-	case string(runtime.IngestStatusRunning):
+	case string(runtime.RunStatusInterrupted):
+		icon = "!"
+		iconStyle = activityQueuedStyle
+	case string(runtime.RunStatusRunning):
 		icon = spinnerView
 		iconStyle = activityRunningStyle
-	case string(runtime.IngestStatusCompleted):
+	case string(runtime.RunStatusCompleted):
 		icon = "✓"
 		iconStyle = activitySuccessStyle
-	case string(runtime.IngestStatusFailed):
+	case string(runtime.RunStatusFailed):
 		icon = "✗"
 		iconStyle = activityErrorStyle
 	default:
@@ -178,7 +244,10 @@ func renderActivityLine(entry activityEntry, spinnerView string, width int) stri
 	if title == "." || title == string(filepath.Separator) || title == "" {
 		title = entry.Title
 	}
-	text := fmt.Sprintf("%s  %s", title, entry.Detail)
+	text := title
+	if strings.TrimSpace(entry.Detail) != "" {
+		text = fmt.Sprintf("%s  %s", title, entry.Detail)
+	}
 	return iconStyle.Render(icon) + " " + activityTextStyle.Width(maxInt(12, width)).Render(text)
 }
 

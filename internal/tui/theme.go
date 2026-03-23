@@ -63,6 +63,10 @@ var (
 	userTextStyle = lipgloss.NewStyle().
 			Foreground(colorBright)
 
+	agentNameStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorAgent)
+
 	agentTextStyle = lipgloss.NewStyle().
 			Foreground(colorText)
 
@@ -82,12 +86,20 @@ var (
 			BorderForeground(colorTool).
 			Padding(0, 1)
 
+	toolFocusedBlockStyle = lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(colorBright).
+				Padding(0, 1)
+
 	toolNameStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(colorTool)
 
 	toolArgsStyle = lipgloss.NewStyle().
 			Foreground(colorFaint)
+
+	toolResultStyle = lipgloss.NewStyle().
+			Foreground(colorText)
 
 	toolApprovedBadge = lipgloss.NewStyle().
 				Foreground(colorSuccess)
@@ -123,6 +135,9 @@ var (
 	streamingCursorStyle = lipgloss.NewStyle().
 				Foreground(colorAgent).
 				Bold(true)
+
+	treeGuideStyle = lipgloss.NewStyle().
+			Foreground(colorBorder)
 )
 
 // ── Help Bar ───────────────────────────────────────────────
@@ -130,9 +145,28 @@ var (
 var helpBarStyle = lipgloss.NewStyle().
 	Foreground(colorFaint)
 
-// ── Activity / Commands ────────────────────────────────────
+// ── Plan / Activity / Commands ─────────────────────────────
 
 var (
+	planBlockStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(colorAgent).
+			Padding(0, 1)
+
+	planTitleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorAgent)
+
+	planDoneStyle = lipgloss.NewStyle().
+			Foreground(colorSuccess)
+
+	planActiveStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorSystem)
+
+	planQueuedStyle = lipgloss.NewStyle().
+			Foreground(colorFaint)
+
 	activityBlockStyle = lipgloss.NewStyle().
 				BorderStyle(lipgloss.RoundedBorder()).
 				BorderForeground(colorBorder).
@@ -141,6 +175,10 @@ var (
 	activityTitleStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSystem)
+
+	activitySectionStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorFaint)
 
 	activityTextStyle = lipgloss.NewStyle().
 				Foreground(colorText)

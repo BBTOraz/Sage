@@ -3,5 +3,6 @@ internal/docs/
 sage.exe
 .idea/
 *.md
+.sage
 !/README.md
 

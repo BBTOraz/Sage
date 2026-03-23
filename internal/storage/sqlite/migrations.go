@@ -44,6 +44,19 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_history_events_session_id ON history_events(session_id, id)`,
 	`CREATE INDEX IF NOT EXISTS idx_history_events_run_sequence ON history_events(run_id, sequence)`,
+	`CREATE TABLE IF NOT EXISTS chat_turns (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		session_id TEXT NOT NULL,
+		run_id TEXT NOT NULL UNIQUE,
+		user_input TEXT NOT NULL DEFAULT '',
+		assistant_output TEXT NOT NULL DEFAULT '',
+		completed INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(session_id) REFERENCES sessions(session_id) ON DELETE CASCADE,
+		FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_chat_turns_session_id ON chat_turns(session_id, id)`,
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

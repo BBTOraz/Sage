@@ -23,7 +23,7 @@ func NewDocAgentWithConfig(ctx context.Context, handlerConfig AgentHandlerConfig
 		return nil, err
 	}
 
-	return adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Name:        "sage-doc",
 		Description: docAgentDescription,
 		Instruction: docAgentInstruction,
@@ -32,10 +32,15 @@ func NewDocAgentWithConfig(ctx context.Context, handlerConfig AgentHandlerConfig
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig: compose.ToolsNodeConfig{
 				UnknownToolsHandler: middleware2.UnknownToolHandler(),
+				ToolArgumentsHandler: toolArgumentsRepairHandler(),
 				Tools:               tools,
 			},
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	return wrapUnknownToolRecoveryAgent(agent), nil
 }
 
 func (a *Application) DocAgent(ctx context.Context) (adk.Agent, error) {

@@ -63,10 +63,7 @@ func NewApplication(ctx context.Context, cfg ApplicationConfig) (*Application, e
 		docTools = append(docTools, t)
 	}
 
-	executorDeepCapabilities, err := defaultExecutorDeepCapabilities(cfg.Env)
-	if err != nil {
-		return nil, err
-	}
+	executorDeepCapabilities := defaultExecutorDeepCapabilities()
 	checkPointStore := cfg.CheckPointStore
 	if checkPointStore == nil {
 		checkPointStore = NewInMemoryCheckPointStore()

@@ -1,6 +1,9 @@
 package runtime
 
-import "bilge-lib/internal/approval"
+import (
+	"bilge-lib/internal/approval"
+	"time"
+)
 
 type SessionID string
 type SessionState string
@@ -16,4 +19,17 @@ type Session struct {
 	Mode        approval.Mode
 	State       SessionState
 	ActiveRunID RunID
+	Title       string
+	Archived    bool
+}
+
+type SessionSummary struct {
+	ID          SessionID
+	Mode        approval.Mode
+	State       SessionState
+	ActiveRunID RunID
+	Title       string
+	Preview     string
+	Archived    bool
+	UpdatedAt   time.Time
 }

@@ -54,3 +54,25 @@ func TestSoftToolErrorMiddlewarePreservesInterrupts(t *testing.T) {
 		}
 	}
 }
+
+func TestSoftToolErrorMiddlewareAddsStrictJSONHintForArgumentParseErrors(t *testing.T) {
+	mw := &SoftToolErrorMiddleware{}
+	endpoint, err := mw.WrapInvokableToolCall(context.Background(), func(ctx context.Context, argumentsInJSON string, _ ...tool.Option) (string, error) {
+		return "", errors.New(`[LocalFunc] failed to unmarshal arguments in json, toolName=read_file, err=Syntax error at index 1`)
+	}, &adk.ToolContext{Name: "read_file"})
+	if err != nil {
+		t.Fatalf("WrapInvokableToolCall() error = %v", err)
+	}
+
+	result, err := endpoint(context.Background(), `path: app.go`)
+	if err != nil {
+		t.Fatalf("expected soft error result, got hard error %v", err)
+	}
+
+	if !strings.Contains(result, string(apperr.InvalidToolArgument)) {
+		t.Fatalf("expected invalid tool argument result, got %q", result)
+	}
+	if !strings.Contains(strings.ToLower(result), "strict json") {
+		t.Fatalf("expected strict json hint, got %q", result)
+	}
+}

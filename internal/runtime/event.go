@@ -16,6 +16,7 @@ type Event struct {
 	RunID    RunID
 	Status   RunStatus
 	Approval *PendingApproval
+	Payload  *EventPayload `json:"payload,omitempty"`
 	Type     EventType `json:"event_type"`
 	Text     string    `json:"text"`
 	Err      error     `json:"error"`

@@ -16,26 +16,33 @@ import (
 )
 
 type model struct {
-	width, height   int
-	ctx             context.Context
-	mode            approval.Mode
-	area            textarea.Model
-	help            help.Model
-	viewport        viewport.Model
-	spinner         spinner.Model
-	messages        []Message
-	assistantDraft  string
-	activeRunID     runtime.RunID
-	runStatus       runtime.RunStatus
-	keys            keyMap
-	manager         *runtime.Manager
-	sessionID       runtime.SessionID
-	sessionState    runtime.SessionState
-	pendingApproval *runtime.PendingApproval
-	approvalToggle  approvalToggle
-	fileSuggest     fileSuggest
-	slash           slashState
-	activities      []activityEntry
+	width, height    int
+	ctx              context.Context
+	mode             approval.Mode
+	area             textarea.Model
+	help             help.Model
+	viewport         viewport.Model
+	spinner          spinner.Model
+	messages         []Message
+	transcript       *transcriptTree
+	planStore        *planStore
+	pinnedPlanRunID  runtime.RunID
+	followTranscript bool
+	assistantDraft   string
+	activeRunID      runtime.RunID
+	runStatus        runtime.RunStatus
+	keys             keyMap
+	manager          *runtime.Manager
+	sessionID        runtime.SessionID
+	sessionState     runtime.SessionState
+	pendingApproval  *runtime.PendingApproval
+	approvalToggle   approvalToggle
+	fileSuggest      fileSuggest
+	dirSuggest       fileSuggest
+	focusedToolID    string
+	slash            slashState
+	sessionSuggest   sessionSuggestState
+	activities       []activityEntry
 }
 
 func newModel(manager *runtime.Manager, ctx context.Context) *model {
@@ -72,19 +79,26 @@ func newModel(manager *runtime.Manager, ctx context.Context) *model {
 		helpBarStyle.Render("  No messages yet. Type a message and press enter."),
 	)
 
-	return &model{
-		ctx:            ctx,
-		mode:           manager.GetSession().Mode,
-		help:           h,
-		keys:           keys,
-		manager:        manager,
-		area:           input,
-		viewport:       vport,
-		spinner:        sp,
-		approvalToggle: newApprovalToggle(),
-		fileSuggest:    newFileSuggest("."),
-		messages:       []Message{},
+	m := &model{
+		ctx:              ctx,
+		mode:             manager.GetSession().Mode,
+		help:             h,
+		keys:             keys,
+		manager:          manager,
+		area:             input,
+		viewport:         vport,
+		spinner:          sp,
+		transcript:       newTranscriptTree(),
+		planStore:        newPlanStore(),
+		followTranscript: true,
+		approvalToggle:   newApprovalToggle(),
+		fileSuggest:      newFileSuggest("."),
+		dirSuggest:       newDirSuggest("."),
+		messages:         []Message{},
+		sessionID:        manager.GetSession().ID,
+		sessionState:     manager.GetSession().State,
 	}
+	return m
 }
 
 func (m *model) Init() tea.Cmd {
@@ -116,6 +130,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.activeRunID != eventMsg.RunID {
 			return m, nil
 		}
+		m.transcript.ApplyEvent(eventMsg)
+		m.planStore.ApplyEvent(eventMsg)
+		if m.planStore.planFor(eventMsg.RunID) != nil {
+			m.pinnedPlanRunID = eventMsg.RunID
+		}
 
 		m.runStatus = eventMsg.Status
 
@@ -124,14 +143,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// spinner already ticking
 
 		case runtime.EventAssistantChunk:
-			m.assistantDraft += eventMsg.Text
 			m.refreshViewport()
 
 		case runtime.EventAssistantDone:
-			m.messages = append(m.messages, Message{
-				Kind: MessageAgent,
-				Text: m.assistantDraft,
-			})
 			m.assistantDraft = ""
 			m.pendingApproval = nil
 			m.syncLayout()
@@ -201,13 +215,39 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m.handleDeny()
 			case key.Matches(msg, m.keys.PageUp):
-				m.viewport.PageUp()
+				m.scrollViewportPageUp()
 				return m, nil
 			case key.Matches(msg, m.keys.PageDown):
-				m.viewport.PageDown()
+				m.scrollViewportPageDown()
 				return m, nil
 			}
 			return m, nil
+		}
+
+		// Directory suggest mode for /ingest <dir>
+		if m.dirSuggest.active {
+			switch {
+			case key.Matches(msg, key.NewBinding(key.WithKeys("up"))):
+				m.dirSuggest.moveUp()
+				m.refreshViewport()
+				return m, nil
+			case key.Matches(msg, key.NewBinding(key.WithKeys("down"))):
+				m.dirSuggest.moveDown()
+				m.refreshViewport()
+				return m, nil
+			case key.Matches(msg, key.NewBinding(key.WithKeys("tab", "enter"))):
+				selected := m.dirSuggest.confirm()
+				if selected != "" {
+					m.area.SetValue("/ingest " + selected)
+				}
+				m.dirSuggest.deactivate()
+				m.refreshViewport()
+				return m, nil
+			case key.Matches(msg, key.NewBinding(key.WithKeys("escape"))):
+				m.dirSuggest.deactivate()
+				m.refreshViewport()
+				return m, nil
+			}
 		}
 
 		// File suggest mode: intercept navigation keys
@@ -255,6 +295,30 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if m.sessionSuggest.active {
+			switch {
+			case key.Matches(msg, key.NewBinding(key.WithKeys("up"))):
+				m.sessionSuggest.moveUp()
+				m.refreshViewport()
+				return m, nil
+			case key.Matches(msg, key.NewBinding(key.WithKeys("down"))):
+				m.sessionSuggest.moveDown()
+				m.refreshViewport()
+				return m, nil
+			case key.Matches(msg, key.NewBinding(key.WithKeys("tab", "enter"))):
+				if err := m.chooseSelectedSession(); err != nil {
+					m.addActivityNotice("failed", "Session", err.Error())
+					m.refreshViewport()
+				}
+				return m, nil
+			case key.Matches(msg, key.NewBinding(key.WithKeys("escape"))):
+				m.area.SetValue("")
+				m.updateSlashState()
+				m.refreshViewport()
+				return m, nil
+			}
+		}
+
 		// Detect '@' to activate file suggestions
 		if msg.String() == "@" && !m.fileSuggest.active {
 			m.fileSuggest.activate(len(m.area.Value()))
@@ -273,7 +337,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.moveSlashDown()
 				m.refreshViewport()
 				return m, nil
-			case key.Matches(msg, key.NewBinding(key.WithKeys("tab"))):
+			case key.Matches(msg, key.NewBinding(key.WithKeys("tab", "enter"))):
 				if cmd, ok := m.selectedSlashCommand(); ok {
 					m.area.SetValue("/" + cmd.Name + " ")
 					m.updateSlashState()
@@ -292,14 +356,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Send):
 			return m.handleSend()
+		case key.Matches(msg, m.keys.NextTool):
+			m.focusNextTool()
+			return m, nil
+		case key.Matches(msg, m.keys.PrevTool):
+			m.focusPrevTool()
+			return m, nil
 		case key.Matches(msg, m.keys.ExpandTools):
 			m.toggleToolExpansion()
 			return m, nil
 		case key.Matches(msg, m.keys.PageUp):
-			m.viewport.PageUp()
+			m.scrollViewportPageUp()
 			return m, nil
 		case key.Matches(msg, m.keys.PageDown):
-			m.viewport.PageDown()
+			m.scrollViewportPageDown()
 			return m, nil
 		}
 	}
@@ -309,10 +379,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.area, cmd = m.area.Update(msg)
 	cmds = append(cmds, cmd)
+	m.syncDirSuggestFromArea()
 	m.updateSlashState()
 	m.refreshViewport()
 
 	m.viewport, cmd = m.viewport.Update(msg)
+	m.syncFollowTranscript()
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -337,6 +409,7 @@ func (m *model) handleSend() (tea.Model, tea.Cmd) {
 	}
 
 	message := Message{Kind: MessageUser, Text: raw}
+	m.followTranscript = true
 	m.appendMessage(message)
 	m.area.SetValue("")
 	m.updateSlashState()
@@ -349,6 +422,8 @@ func (m *model) handleSend() (tea.Model, tea.Cmd) {
 
 	m.activeRunID = handle.ID
 	m.runStatus = handle.Status
+	m.pinnedPlanRunID = handle.ID
+	m.appendMessage(Message{Kind: MessageRun, RunID: handle.ID})
 
 	return m, tea.Batch(
 		m.spinner.Tick,
@@ -398,6 +473,11 @@ func (m *model) handleSlashCommand(raw string) (tea.Model, tea.Cmd) {
 			m.spinner.Tick,
 			waitIngestEvent(handle.Events),
 		)
+	case "session":
+		m.area.SetValue("/session ")
+		m.updateSlashState()
+		m.refreshViewport()
+		return m, nil
 	default:
 		m.addActivityNotice("failed", "Command", "unsupported slash command")
 		m.area.SetValue("")
@@ -408,12 +488,8 @@ func (m *model) handleSlashCommand(raw string) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleApprove() (tea.Model, tea.Cmd) {
-	m.appendMessage(Message{
-		Kind:       MessageTool,
-		ToolName:   toolName(m.pendingApproval),
-		ToolArgs:   toolArgs(m.pendingApproval),
-		ToolStatus: "approved",
-	})
+	m.followTranscript = true
+	pending := m.pendingApproval
 
 	handle, err := m.manager.ApprovePending(m.ctx)
 	if err != nil {
@@ -423,6 +499,9 @@ func (m *model) handleApprove() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if pending != nil {
+		m.transcript.resolveApproval(pending.RunID, toolName(pending), "approved")
+	}
 	m.pendingApproval = nil
 	m.activeRunID = handle.ID
 	m.runStatus = handle.Status
@@ -436,12 +515,8 @@ func (m *model) handleApprove() (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleDeny() (tea.Model, tea.Cmd) {
-	m.appendMessage(Message{
-		Kind:       MessageTool,
-		ToolName:   toolName(m.pendingApproval),
-		ToolArgs:   toolArgs(m.pendingApproval),
-		ToolStatus: "denied",
-	})
+	m.followTranscript = true
+	pending := m.pendingApproval
 
 	handle, err := m.manager.DenyPending(m.ctx)
 	if err != nil {
@@ -451,6 +526,9 @@ func (m *model) handleDeny() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if pending != nil {
+		m.transcript.resolveApproval(pending.RunID, toolName(pending), "denied")
+	}
 	m.pendingApproval = nil
 	m.activeRunID = handle.ID
 	m.runStatus = handle.Status
@@ -469,17 +547,17 @@ func (m *model) appendMessage(message Message) {
 }
 
 func (m *model) toggleToolExpansion() {
-	anyCollapsed := false
-	for _, msg := range m.messages {
-		if msg.Kind == MessageTool && !msg.Expanded {
-			anyCollapsed = true
-			break
-		}
+	toolIDs := m.transcript.toolIDsForMessages(m.messages)
+	if len(toolIDs) == 0 {
+		return
 	}
-	for i := range m.messages {
-		if m.messages[i].Kind == MessageTool {
-			m.messages[i].Expanded = anyCollapsed
-		}
+	targetID := m.focusedToolID
+	if targetID == "" || m.transcript.nodeForID(targetID) == nil {
+		targetID = toolIDs[len(toolIDs)-1]
+		m.setFocusedTool(targetID)
+	}
+	if node := m.transcript.nodeForID(targetID); node != nil {
+		node.Expanded = !node.Expanded
 	}
 	m.refreshViewport()
 }
@@ -488,15 +566,25 @@ func (m *model) refreshViewport() {
 	w, _ := m.viewportSize()
 	content := renderTranscript(
 		m.messages,
-		m.assistantDraft,
+		m.transcript,
 		m.spinner.View(),
 		m.pendingApproval,
 		m.approvalToggle,
-		m.activeRunID != "",
+		m.activeRunID,
 		w,
 	)
 	if m.fileSuggest.active {
 		overlay := m.fileSuggest.View(w)
+		if overlay != "" {
+			content += "\n\n" + overlay
+		}
+	} else if m.dirSuggest.active {
+		overlay := m.dirSuggest.View(w)
+		if overlay != "" {
+			content += "\n\n" + overlay
+		}
+	} else if m.sessionSuggest.active {
+		overlay := m.sessionOverlayView(w)
 		if overlay != "" {
 			content += "\n\n" + overlay
 		}
@@ -507,7 +595,9 @@ func (m *model) refreshViewport() {
 		}
 	}
 	m.viewport.SetContent(content)
-	m.viewport.GotoBottom()
+	if m.followTranscript || m.viewport.PastBottom() {
+		m.viewport.GotoBottom()
+	}
 }
 
 func (m *model) syncLayout() {
@@ -554,4 +644,91 @@ func toolArgs(pa *runtime.PendingApproval) string {
 		return pa.Summary
 	}
 	return ""
+}
+
+func (m *model) scrollViewportPageUp() {
+	m.viewport.PageUp()
+	m.syncFollowTranscript()
+}
+
+func (m *model) scrollViewportPageDown() {
+	m.viewport.PageDown()
+	m.syncFollowTranscript()
+}
+
+func (m *model) syncFollowTranscript() {
+	m.followTranscript = m.viewport.AtBottom()
+}
+
+func (m *model) syncDirSuggestFromArea() {
+	value := strings.ReplaceAll(m.area.Value(), "\r\n", "\n")
+	if !(value == "/ingest" || strings.HasPrefix(value, "/ingest ")) {
+		m.dirSuggest.deactivate()
+		return
+	}
+
+	query := strings.TrimSpace(strings.TrimPrefix(value, "/ingest"))
+	atPos := len("/ingest ")
+	if !m.dirSuggest.active {
+		m.dirSuggest.activate(atPos)
+	}
+	m.dirSuggest.query = query
+	m.dirSuggest.items = m.dirSuggest.filter(query)
+	if len(m.dirSuggest.items) == 0 {
+		m.dirSuggest.selected = 0
+		m.dirSuggest.offset = 0
+		return
+	}
+	if m.dirSuggest.selected >= len(m.dirSuggest.items) {
+		m.dirSuggest.selected = len(m.dirSuggest.items) - 1
+	}
+	if m.dirSuggest.selected < 0 {
+		m.dirSuggest.selected = 0
+	}
+	if m.dirSuggest.offset > m.dirSuggest.selected {
+		m.dirSuggest.offset = m.dirSuggest.selected
+	}
+	if m.dirSuggest.selected >= m.dirSuggest.offset+maxVisible {
+		m.dirSuggest.offset = m.dirSuggest.selected - maxVisible + 1
+	}
+}
+
+func (m *model) focusNextTool() {
+	m.moveToolFocus(1)
+}
+
+func (m *model) focusPrevTool() {
+	m.moveToolFocus(-1)
+}
+
+func (m *model) moveToolFocus(delta int) {
+	toolIDs := m.transcript.toolIDsForMessages(m.messages)
+	if len(toolIDs) == 0 {
+		return
+	}
+
+	index := -1
+	for i, nodeID := range toolIDs {
+		if nodeID == m.focusedToolID {
+			index = i
+			break
+		}
+	}
+
+	switch {
+	case index == -1 && delta >= 0:
+		index = 0
+	case index == -1 && delta < 0:
+		index = len(toolIDs) - 1
+	default:
+		index = (index + delta + len(toolIDs)) % len(toolIDs)
+	}
+
+	m.setFocusedTool(toolIDs[index])
+	m.refreshViewport()
+}
+
+func (m *model) setFocusedTool(nodeID string) {
+	m.focusedToolID = nodeID
+	m.transcript.setFocusedTool(nodeID)
 }

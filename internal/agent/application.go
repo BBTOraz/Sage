@@ -9,24 +9,27 @@ import (
 	"bilge-lib/internal/storage/opensearch"
 	"context"
 
+	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/components/tool"
 )
 
 type ApplicationConfig struct {
-	Env          core.EnvConfig
-	ApprovalMode approval.Mode
-	OpenSearch   opensearch.Config
+	Env             core.EnvConfig
+	ApprovalMode    approval.Mode
+	OpenSearch      opensearch.Config
+	CheckPointStore adk.CheckPointStore
 }
 
 type Application struct {
-	config          ApplicationConfig
-	model           model.BaseChatModel
-	searchService   docservices.SearchService
-	metadataService docservices.MetadataService
-	chunkService    docservices.ChunkService
-	docTools        []tool.BaseTool
-	checkpoints     *InMemoryCheckPointStore
+	config                   ApplicationConfig
+	model                    model.BaseChatModel
+	searchService            docservices.SearchService
+	metadataService          docservices.MetadataService
+	chunkService             docservices.ChunkService
+	docTools                 []tool.BaseTool
+	checkpoints              adk.CheckPointStore
+	executorDeepCapabilities ExecutorDeepCapabilities
 }
 
 func NewApplication(ctx context.Context, cfg ApplicationConfig) (*Application, error) {
@@ -60,14 +63,21 @@ func NewApplication(ctx context.Context, cfg ApplicationConfig) (*Application, e
 		docTools = append(docTools, t)
 	}
 
+	executorDeepCapabilities := defaultExecutorDeepCapabilities()
+	checkPointStore := cfg.CheckPointStore
+	if checkPointStore == nil {
+		checkPointStore = NewInMemoryCheckPointStore()
+	}
+
 	return &Application{
-		config:          cfg,
-		model:           chatModel,
-		searchService:   searchService,
-		metadataService: metadataService,
-		chunkService:    chunkService,
-		docTools:        docTools,
-		checkpoints:     NewInMemoryCheckPointStore(),
+		config:                   cfg,
+		model:                    chatModel,
+		searchService:            searchService,
+		metadataService:          metadataService,
+		chunkService:             chunkService,
+		docTools:                 docTools,
+		checkpoints:              checkPointStore,
+		executorDeepCapabilities: executorDeepCapabilities,
 	}, nil
 }
 

@@ -59,9 +59,18 @@ func prefixBlock(label, body, indent string) string {
 }
 
 func renderToolBlock(name, args, status string, expanded bool, width int) string {
+	return indentBlock(renderToolBlockBody(name, args, "", status, expanded, false, width), "  ")
+}
+
+func renderToolBlockBody(name, args, result, status string, expanded bool, focused bool, width int) string {
 	blockWidth := width - 4
 	if blockWidth < 20 {
 		blockWidth = 20
+	}
+
+	blockStyle := toolBlockStyle
+	if focused {
+		blockStyle = toolFocusedBlockStyle
 	}
 
 	var badge string
@@ -75,25 +84,39 @@ func renderToolBlock(name, args, status string, expanded bool, width int) string
 	if !expanded {
 		// Collapsed: just the border frame with title and badge, no inner content
 		hint := toolArgsStyle.Render("  ▸ press enter to expand")
-		block := toolBlockStyle.
+		block := blockStyle.
 			Width(blockWidth).
 			Render(hint)
 		block = injectBorderTitle(block, toolNameStyle.Render(name), badge)
 		return indentBlock(block, "  ")
 	}
 
-	// Expanded: show full args
-	content := toolArgsStyle.Render(formatToolArgs(args))
+	// Expanded: show full args and latest tool result.
+	var sections []string
+	if strings.TrimSpace(args) != "" {
+		sections = append(sections, toolArgsStyle.Render("args:\n"+formatToolArgs(args)))
+	}
+	if strings.TrimSpace(result) != "" {
+		sections = append(sections, toolResultStyle.Render("result:\n"+result))
+	}
+	if len(sections) == 0 {
+		sections = append(sections, toolArgsStyle.Render("(no payload)"))
+	}
+	content := strings.Join(sections, "\n\n")
 
-	block := toolBlockStyle.
+	block := blockStyle.
 		Width(blockWidth).
 		Render(content)
 
 	block = injectBorderTitle(block, toolNameStyle.Render(name), badge)
-	return indentBlock(block, "  ")
+	return block
 }
 
 func renderToolBlockWithApproval(pa *runtime.PendingApproval, toggle approvalToggle, width int) string {
+	return indentBlock(renderToolBlockWithApprovalBody(pa, toggle, width), "  ")
+}
+
+func renderToolBlockWithApprovalBody(pa *runtime.PendingApproval, toggle approvalToggle, width int) string {
 	blockWidth := width - 4
 	if blockWidth < 20 {
 		blockWidth = 20
@@ -120,7 +143,7 @@ func renderToolBlockWithApproval(pa *runtime.PendingApproval, toggle approvalTog
 		Render(inner)
 
 	block = injectBorderTitle(block, toolNameStyle.Render(name), "")
-	return indentBlock(block, "  ")
+	return block
 }
 
 func renderSpinnerLine(spinnerView string) string {
@@ -129,18 +152,19 @@ func renderSpinnerLine(spinnerView string) string {
 
 func renderTranscript(
 	msgs []Message,
-	draft string,
+	tree *transcriptTree,
 	spinnerView string,
 	pending *runtime.PendingApproval,
 	toggle approvalToggle,
-	isProcessing bool,
+	activeRunID runtime.RunID,
 	width int,
 ) string {
-	if len(msgs) == 0 && draft == "" && pending == nil && !isProcessing {
+	if len(msgs) == 0 && (tree == nil || len(tree.nodes) == 0) && pending == nil && activeRunID == "" {
 		return helpBarStyle.Render("  No messages yet. Type a message and press enter.")
 	}
 
 	var sections []string
+	pendingRendered := false
 
 	for _, msg := range msgs {
 		switch msg.Kind {
@@ -156,22 +180,209 @@ func renderTranscript(
 			sections = append(sections, renderToolBlock(
 				msg.ToolName, msg.ToolArgs, msg.ToolStatus, msg.Expanded, width,
 			))
+		case MessageRun:
+			block, renderedPending := renderRunTranscript(tree, msg.RunID, activeRunID, spinnerView, pending, toggle, width)
+			if block != "" {
+				sections = append(sections, block)
+			}
+			if renderedPending {
+				pendingRendered = true
+			}
 		}
 	}
 
-	if pending != nil {
+	if pending != nil && !pendingRendered {
 		sections = append(sections, renderToolBlockWithApproval(pending, toggle, width))
 	}
 
-	if strings.TrimSpace(draft) != "" {
-		sections = append(sections, renderAgentStreaming(draft, width))
-	}
-
-	if isProcessing && strings.TrimSpace(draft) == "" && pending == nil {
+	if activeRunID != "" && !hasRunAnchor(msgs, activeRunID) {
 		sections = append(sections, renderSpinnerLine(spinnerView))
 	}
 
 	return strings.Join(sections, "\n\n")
+}
+
+func renderRunTranscript(
+	tree *transcriptTree,
+	runID runtime.RunID,
+	activeRunID runtime.RunID,
+	spinnerView string,
+	pending *runtime.PendingApproval,
+	toggle approvalToggle,
+	width int,
+) (string, bool) {
+	if tree == nil {
+		if activeRunID == runID {
+			return renderSpinnerLine(spinnerView), false
+		}
+		return "", false
+	}
+
+	roots := tree.runRoots(runID)
+	if len(roots) == 0 {
+		if activeRunID == runID {
+			return renderSpinnerLine(spinnerView), false
+		}
+		return "", false
+	}
+
+	blocks := make([]visibleRunBlock, 0, len(roots))
+	for _, rootID := range roots {
+		collectVisibleRunBlocks(tree, rootID, "", &blocks)
+	}
+	if len(blocks) == 0 {
+		if activeRunID == runID {
+			return renderSpinnerLine(spinnerView), false
+		}
+		return "", false
+	}
+
+	sections := make([]string, 0, len(blocks))
+	renderedPending := false
+	for i, block := range blocks {
+		node := tree.nodeForID(block.NodeID)
+		if node == nil {
+			continue
+		}
+
+		switch block.Kind {
+		case transcriptNodeAgent:
+			isActiveLeaf := node.ID == tree.lastAgentByRun[activeRunID] && node.Status == string(runtime.RunStatusRunning)
+			sections = append(sections, renderAgentTreeBlock(node, block.DisplayName, isActiveLeaf, spinnerView, width))
+		case transcriptNodeTool:
+			isLastInGroup := i == len(blocks)-1 ||
+				blocks[i+1].Kind != transcriptNodeTool ||
+				blocks[i+1].ParentVisibleAgentID != block.ParentVisibleAgentID
+			toolOutput, toolRenderedPending := renderVisibleToolBlock(node, pending, toggle, width, isLastInGroup)
+			if toolOutput != "" {
+				sections = append(sections, toolOutput)
+			}
+			renderedPending = renderedPending || toolRenderedPending
+		}
+	}
+
+	return strings.Join(sections, "\n"), renderedPending
+}
+
+type visibleRunBlock struct {
+	Kind                 transcriptNodeKind
+	NodeID               string
+	DisplayName          string
+	ParentVisibleAgentID string
+}
+
+func collectVisibleRunBlocks(tree *transcriptTree, nodeID string, visibleAgentID string, out *[]visibleRunBlock) {
+	node := tree.nodeForID(nodeID)
+	if node == nil {
+		return
+	}
+
+	switch node.Kind {
+	case transcriptNodeAgent:
+		nextVisibleAgentID := visibleAgentID
+		if displayName, ok := userFacingAgentName(node); ok {
+			*out = append(*out, visibleRunBlock{
+				Kind:        transcriptNodeAgent,
+				NodeID:      node.ID,
+				DisplayName: displayName,
+			})
+			nextVisibleAgentID = node.ID
+		}
+		for _, childID := range node.Children {
+			collectVisibleRunBlocks(tree, childID, nextVisibleAgentID, out)
+		}
+	case transcriptNodeTool:
+		if visibleAgentID == "" || hideToolFromTranscript(node) {
+			return
+		}
+		*out = append(*out, visibleRunBlock{
+			Kind:                 transcriptNodeTool,
+			NodeID:               node.ID,
+			ParentVisibleAgentID: visibleAgentID,
+		})
+	}
+}
+
+func renderAgentTreeBlock(node *transcriptNode, displayName string, active bool, spinnerView string, width int) string {
+	if width < 10 {
+		width = 10
+	}
+
+	body := agentNameStyle.Render(displayName)
+	if strings.TrimSpace(node.Summary) != "" {
+		body += "\n" + renderMarkdown(node.Summary, width-6)
+	} else if active {
+		body += "\n" + spinnerView + spinnerLabelStyle.Render(" thinking…")
+	}
+
+	return prefixBlock(agentLabelStyle.Render("A"), body, "    ")
+}
+
+func renderVisibleToolBlock(
+	node *transcriptNode,
+	pending *runtime.PendingApproval,
+	toggle approvalToggle,
+	width int,
+	isLast bool,
+) (string, bool) {
+	firstPrefix := "   " + treeGuideStyle.Render("├─ ")
+	continuePrefix := "   " + treeGuideStyle.Render("│  ")
+	if isLast {
+		firstPrefix = "   " + treeGuideStyle.Render("└─ ")
+		continuePrefix = "      "
+	}
+
+	blockWidth := width - runeWidth(firstPrefix)
+	if blockWidth < 20 {
+		blockWidth = 20
+	}
+
+	if node.Approval != nil && pending != nil && pending.RunID == node.Approval.RunID {
+		block := renderToolBlockWithApprovalBody(node.Approval, toggle, blockWidth)
+		return prefixTreeBlock(block, firstPrefix, continuePrefix), true
+	}
+
+	block := renderToolBlockBody(node.Title, node.Summary, node.Result, node.Status, node.Expanded, node.Focused, blockWidth)
+	return prefixTreeBlock(block, firstPrefix, continuePrefix), false
+}
+
+func userFacingAgentName(node *transcriptNode) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(node.AgentName)) {
+	case "sage":
+		return "Sage", true
+	default:
+		return "", false
+	}
+}
+
+func hideToolFromTranscript(node *transcriptNode) bool {
+	switch strings.ToLower(strings.TrimSpace(node.Title)) {
+	case "plan", "respond", "write_todos":
+		return true
+	default:
+		return false
+	}
+}
+
+func prefixTreeBlock(block, firstPrefix, continuePrefix string) string {
+	lines := strings.Split(block, "\n")
+	for i, line := range lines {
+		prefix := continuePrefix
+		if i == 0 {
+			prefix = firstPrefix
+		}
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
+}
+
+func hasRunAnchor(msgs []Message, runID runtime.RunID) bool {
+	for _, msg := range msgs {
+		if msg.Kind == MessageRun && msg.RunID == runID {
+			return true
+		}
+	}
+	return false
 }
 
 func renderMarkdown(text string, width int) string {

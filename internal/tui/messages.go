@@ -10,10 +10,12 @@ const (
 	MessageSystem MessageKind = "system"
 	MessageTool   MessageKind = "tool"
 	MessageError  MessageKind = "error"
+	MessageRun    MessageKind = "run"
 )
 
 type Message struct {
 	Kind       MessageKind
+	RunID      runtime.RunID
 	Text       string
 	ToolName   string
 	ToolArgs   string

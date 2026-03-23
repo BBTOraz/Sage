@@ -30,6 +30,7 @@ type selectionOverlayConfig struct {
 
 type fileSuggest struct {
 	active   bool
+	dirsOnly bool
 	query    string
 	items    []string // all filtered results (no cap)
 	selected int
@@ -40,12 +41,21 @@ type fileSuggest struct {
 }
 
 func newFileSuggest(baseDir string) fileSuggest {
+	return newPathSuggest(baseDir, false)
+}
+
+func newDirSuggest(baseDir string) fileSuggest {
+	return newPathSuggest(baseDir, true)
+}
+
+func newPathSuggest(baseDir string, dirsOnly bool) fileSuggest {
 	abs, err := filepath.Abs(baseDir)
 	if err != nil {
 		abs = baseDir
 	}
 	return fileSuggest{
-		baseDir: abs,
+		baseDir:  abs,
+		dirsOnly: dirsOnly,
 	}
 }
 
@@ -56,7 +66,11 @@ func (fs *fileSuggest) activate(atPos int) {
 	fs.offset = 0
 	fs.atPos = atPos
 	if fs.allFiles == nil {
-		fs.allFiles = walkFiles(fs.baseDir)
+		if fs.dirsOnly {
+			fs.allFiles = walkDirs(fs.baseDir)
+		} else {
+			fs.allFiles = walkFiles(fs.baseDir)
+		}
 	}
 	fs.items = fs.filter("")
 }
@@ -136,9 +150,16 @@ func (fs fileSuggest) View(width int) string {
 		})
 	}
 
+	title := "Files"
+	queryIcon := "@"
+	if fs.dirsOnly {
+		title = "Directories"
+		queryIcon = "/"
+	}
+
 	return renderSelectionOverlay(selectionOverlayConfig{
-		Title:     "Files",
-		QueryIcon: "@",
+		Title:     title,
+		QueryIcon: queryIcon,
 		Query:     fs.query,
 		Items:     items,
 		Selected:  fs.selected,
@@ -176,6 +197,39 @@ func walkFiles(baseDir string) []string {
 
 	sort.Strings(files)
 	return files
+}
+
+func walkDirs(baseDir string) []string {
+	var dirs []string
+	ignored := map[string]bool{
+		".git": true, ".idea": true, "node_modules": true,
+		"vendor": true, "__pycache__": true, ".vscode": true,
+	}
+
+	_ = filepath.WalkDir(baseDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		name := d.Name()
+		if path != baseDir && (ignored[name] || (len(name) > 1 && name[0] == '.')) {
+			return filepath.SkipDir
+		}
+		if path == baseDir {
+			return nil
+		}
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return nil
+		}
+		dirs = append(dirs, filepath.ToSlash(abs))
+		return nil
+	})
+
+	sort.Strings(dirs)
+	return dirs
 }
 
 func renderSelectionOverlay(cfg selectionOverlayConfig) string {

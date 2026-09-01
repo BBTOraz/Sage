@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#0878b9">
+<title>Проектирование агентных систем — справочник ENU</title>
+<meta name="description" content="Практический справочник для начинающих: от помощника по документам до первого безопасного инструмента. Все задания выполняются в отдельном учебном проекте без доступа к Bilge и внутренним системам ENU.">
+<style>
+:root{
+  --blue:#0878b9;
+  --blue-dark:#075889;
+  --blue-deep:#12384f;
+  --blue-soft:#eaf5fb;
+  --sky:#d8edf8;
+  --gold:#d3a72c;
+  --gold-soft:#fff5ce;
+  --ink:#172536;
+  --muted:#5e6d7c;
+  --line:#dbe4ea;
+  --paper:#fff;
+  --wash:#f5f8fa;
+  --green:#1c7458;
+  --green-soft:#e8f6ef;
+  --red:#a63b36;
+  --red-soft:#fff0ed;
+  --shadow:0 20px 55px rgba(28,53,72,.12);
+  --content:1180px;
+  --radius:24px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--paper);font-family:Inter,"Segoe UI",Arial,sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+img,svg{display:block;max-width:100%}
+a{color:var(--blue-dark);text-underline-offset:3px}
+button{font:inherit}
+.wrap{width:min(var(--content),calc(100% - 40px));margin-inline:auto}
+.icon{width:1em;height:1em;fill:currentColor;flex:0 0 auto}
+.eyebrow{margin:0 0 10px;color:var(--blue-dark);font-size:.78rem;font-weight:850;letter-spacing:.11em;text-transform:uppercase}
+.display{margin:0;font-size:clamp(2.55rem,7vw,5.6rem);line-height:.98;letter-spacing:-.055em;font-weight:790}
+h2{margin:0 0 18px;font-size:clamp(2rem,4.7vw,3.65rem);line-height:1.08;letter-spacing:-.04em}
+h3{margin:0 0 9px;font-size:clamp(1.2rem,2.2vw,1.65rem);line-height:1.25}
+h4{margin:0 0 8px;font-size:1.05rem}
+p{margin:0 0 1em}
+.lead{max-width:780px;color:#405365;font-size:clamp(1.06rem,2vw,1.28rem);line-height:1.65}
+.small{color:var(--muted);font-size:.91rem}
+.mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+.site-header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);border-bottom:1px solid rgba(219,228,234,.94);backdrop-filter:blur(14px)}
+.header-row{min-height:74px;display:flex;align-items:center;justify-content:space-between;gap:22px}
+.brand{display:flex;align-items:center;gap:15px;min-width:245px;text-decoration:none;color:var(--ink)}
+.brand-logo-wrap{width:200px;min-height:42px;display:grid;place-items:center start}
+.brand-logo{width:200px;height:70px;object-fit:contain;object-position:left center}
+.brand-fallback{display:none;align-items:center;gap:9px;color:var(--blue-dark);font-weight:900;font-size:1.3rem}
+.brand-fallback b{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--blue)}
+.brand-sub{font-size:.72rem;line-height:1.28;color:var(--muted)}
+.topnav{display:flex;align-items:center;gap:19px;white-space:nowrap}
+.topnav a{color:#33485a;font-size:.88rem;font-weight:750;text-decoration:none}
+.topnav a:hover{color:var(--blue)}
+.header-download{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;color:white!important;background:var(--blue)}
+.button{border:0;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:13px 20px;border-radius:12px;font-weight:820;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+.button:hover{transform:translateY(-2px)}
+.button.primary{color:white;background:var(--blue);box-shadow:0 12px 24px rgba(8,120,185,.22)}
+.button.secondary{color:var(--blue-dark);background:white;border:1px solid #b9d7e7}
+.button.ghost{color:var(--blue-dark);background:var(--blue-soft)}
+.section{padding:105px 0}
+.section.alt{background:var(--wash)}
+.section.blue{color:white;background:var(--blue-dark)}
+.section.blue .eyebrow,.section.blue .lead,.section.blue .small{color:#d6edf9}
+.section-head{display:grid;grid-template-columns:minmax(0,.86fr) minmax(320px,.56fr);justify-content:space-between;gap:56px;align-items:end;margin-bottom:52px}
+.section-head p{margin-bottom:0}
+.hero{position:relative;overflow:hidden;background:linear-gradient(180deg,#f7fbfd 0%,#fff 90%)}
+.hero::before{content:"";position:absolute;inset:0 0 auto;height:7px;background:linear-gradient(90deg,var(--blue) 0 76%,var(--gold) 76%)}
+.hero-grid{min-height:675px;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(380px,.92fr);align-items:center;gap:clamp(44px,7vw,94px);padding:94px 0 68px}
+.hero-copy .display span{color:var(--blue)}
+.hero-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:29px}
+.hero-note{margin-top:21px;color:var(--muted);font-size:.86rem}
+.hero-photo{position:relative;min-height:490px;margin:0;border-radius:120px 24px 24px 24px;overflow:hidden;background:#d9edf7;box-shadow:var(--shadow)}
+.hero-photo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 42%,rgba(5,52,82,.84));pointer-events:none}
+.hero-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.campus-fallback{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(150deg,#d9edf7,#f5fbfe)}
+.hero-photo.remote-loaded .campus-fallback{display:none}
+.photo-caption{position:absolute;z-index:3;left:28px;right:28px;bottom:23px;color:white}
+.photo-caption strong{display:block;font-size:1.15rem}
+.photo-caption a{color:white;font-size:.82rem}
+.hero-stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:white}
+.hero-stat{padding:22px 26px;border-right:1px solid var(--line)}
+.hero-stat:last-child{border-right:0}
+.hero-stat b{display:block;color:var(--blue-dark);font-size:1.16rem}
+.hero-stat span{color:var(--muted);font-size:.87rem}
+.question-stage{display:grid;grid-template-columns:minmax(0,.66fr) minmax(0,1.34fr);gap:54px;align-items:center}
+.student-portrait{position:relative;min-height:430px;display:grid;place-items:center;overflow:hidden;border-radius:50% 50% 20% 20% / 42% 42% 15% 15%;background:linear-gradient(160deg,#d9edf7,#f8fcfe)}
+.student-portrait::before{content:"";position:absolute;width:350px;height:350px;border-radius:50%;border:1px solid rgba(8,120,185,.17)}
+.student-icon{width:180px;color:var(--blue)}
+.speech{position:absolute;left:27px;right:27px;bottom:25px;padding:21px 23px;border-radius:20px 20px 20px 4px;color:white;background:var(--blue-dark);box-shadow:0 16px 32px rgba(7,88,137,.22);font-size:clamp(1.03rem,2vw,1.25rem);font-weight:760;line-height:1.38}
+.source-answer{display:grid;gap:20px}
+.browser-frame{overflow:hidden;border:1px solid var(--line);border-radius:18px;background:white;box-shadow:0 18px 50px rgba(36,61,80,.1)}
+.browser-bar{height:42px;display:flex;align-items:center;gap:7px;padding:0 16px;border-bottom:1px solid var(--line);background:#f7f9fa}
+.browser-dot{width:9px;height:9px;border-radius:50%;background:#c8d2d9}
+.browser-url{margin-left:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#71808c;font-size:.75rem}
+.browser-content{padding:27px}
+.browser-brand{color:var(--blue-dark);font-weight:900;font-size:.82rem;letter-spacing:.03em}
+.document-list{list-style:none;margin:19px 0 0;padding:0;display:grid;gap:9px;counter-reset:doc}
+.document-list li{position:relative;padding:8px 10px 8px 38px;border-radius:8px;color:#3a4d5d;font-size:.92rem}
+.document-list li::before{counter-increment:doc;content:counter(doc);position:absolute;left:10px;top:8px;width:19px;height:19px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--blue);font-size:.68rem;font-weight:900}
+.document-list li.hit{background:#fff4c9;box-shadow:inset 4px 0 0 var(--gold)}
+.answer-panel{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;padding:24px;border-radius:18px;color:#17384b;background:var(--blue-soft);border-left:5px solid var(--blue)}
+.answer-avatar{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--blue)}
+.source-pill{display:inline-flex;align-items:center;gap:7px;margin-top:8px;padding:6px 10px;border-radius:999px;color:var(--blue-dark);background:white;font-size:.8rem;font-weight:800;text-decoration:none}
+.ladder{position:relative;margin-top:52px;display:grid;grid-template-columns:repeat(4,1fr);align-items:end;gap:18px}
+.ladder::before{content:"";position:absolute;left:8%;right:8%;bottom:38px;height:2px;background:#bfd2dd}
+.ladder-step{position:relative;z-index:1;min-height:178px;padding:23px 20px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:18px;border:1px solid var(--line);background:white}
+.ladder-step:nth-child(2){min-height:218px}.ladder-step:nth-child(3){min-height:262px;color:white;background:var(--blue);border-color:var(--blue);box-shadow:0 18px 34px rgba(8,120,185,.2)}.ladder-step:nth-child(4){min-height:305px;background:#edf2f5}
+.ladder-num{width:42px;height:42px;display:grid;place-items:center;margin-bottom:auto;border-radius:50%;color:white;background:var(--blue-dark);font-weight:900}
+.ladder-step:nth-child(3) .ladder-num{color:var(--blue-dark);background:white}
+.ladder-step h3{margin:20px 0 8px;font-size:1.1rem}.ladder-step p{margin:0;color:var(--muted);font-size:.87rem;line-height:1.5}.ladder-step:nth-child(3) p{color:#e4f5fc}
+.ladder-tag{align-self:flex-start;margin-top:13px;padding:5px 8px;border-radius:6px;background:#fff2bd;color:#6f5600;font-size:.7rem;font-weight:900;text-transform:uppercase}
+.terms{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;overflow:hidden;border-radius:26px;background:var(--line);border:1px solid var(--line)}
+.term{min-height:245px;padding:29px;background:white}.term-icon{width:58px;height:58px;display:grid;place-items:center;margin-bottom:28px;border-radius:18px;color:var(--blue);background:var(--blue-soft)}.term-icon .icon{width:27px;height:27px}.term h3{font-size:1.17rem}.term p{margin:0;color:var(--muted);font-size:.92rem}
+.rag-note{margin-top:28px;display:flex;align-items:flex-start;gap:17px;padding:23px 27px;border-radius:16px;color:#3e4a40;background:#f3efe4}.rag-note .icon{width:24px;height:24px;margin-top:4px;color:#826616}
+.flow-board{overflow:hidden;border-radius:28px;background:white;box-shadow:var(--shadow);border:1px solid #eef2f4}
+.flow-row{display:grid;grid-template-columns:1fr 52px 1fr 52px 1fr 52px 1fr 52px 1fr;align-items:center;padding:36px 28px}
+.flow-card{min-height:190px;padding:22px 17px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-radius:22px;border:1px solid var(--line);background:#fff}
+.flow-card.primary{color:white;background:var(--blue-dark);border-color:var(--blue-dark)}
+.flow-card.success{background:var(--green-soft);border-color:#a8d5c2}
+.flow-card .flow-icon{width:62px;height:62px;display:grid;place-items:center;margin-bottom:17px;border-radius:20px;color:var(--blue);background:var(--blue-soft)}
+.flow-card.primary .flow-icon{color:var(--blue);background:white}.flow-card.success .flow-icon{color:white;background:var(--green)}
+.flow-card .flow-icon .icon{width:28px;height:28px}.flow-card b{font-size:1rem}.flow-card span{margin-top:5px;color:var(--muted);font-size:.78rem;line-height:1.42}.flow-card.primary span{color:#d8edf8}
+.connector{position:relative;height:3px;background:#b9ccd7}.connector::after{content:"";position:absolute;right:-2px;top:50%;width:10px;height:10px;border-top:3px solid #88a7b8;border-right:3px solid #88a7b8;transform:translateY(-50%) rotate(45deg)}
+.flow-caption{display:flex;justify-content:space-between;gap:22px;padding:16px 28px 22px;color:var(--muted);font-size:.83rem;border-top:1px solid var(--line)}
+.boundary-grid{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(300px,.82fr);gap:42px;align-items:stretch}
+.boundary-map{position:relative;min-height:450px;overflow:hidden;border-radius:28px;color:white;background:linear-gradient(145deg,#075889,#0878b9)}
+.boundary-map::before{content:"";position:absolute;inset:0;opacity:.2;background-image:linear-gradient(rgba(255,255,255,.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.15) 1px,transparent 1px);background-size:42px 42px}
+.boundary-content{position:relative;z-index:2;height:100%;padding:40px;display:flex;flex-direction:column}.boundary-content h3{max-width:690px;font-size:clamp(1.55rem,3.4vw,2.55rem)}
+.boundary-row{margin-top:auto;display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:12px;align-items:center}
+.boundary-node{min-height:135px;display:flex;flex-direction:column;justify-content:space-between;padding:19px;border-radius:17px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12)}
+.boundary-node .icon{width:28px;height:28px}.boundary-node b{display:block}.boundary-node span{display:block;margin-top:5px;color:#d9eff9;font-size:.81rem;line-height:1.4}.boundary-arrow{font-size:1.5rem;color:#f0cf71}
+.access-panel{min-height:450px;padding:34px;display:flex;flex-direction:column;border-radius:28px;background:linear-gradient(165deg,#fff7d8,#fff);border:1px solid #ead487}
+.access-mark{width:76px;height:76px;display:grid;place-items:center;margin-bottom:25px;border-radius:23px;color:white;background:var(--blue-dark)}.access-mark .icon{width:32px;height:32px}.access-panel h3{font-size:1.7rem}.access-panel .plain-list{margin-top:auto}
+.plain-list{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:12px}.plain-list li{display:flex;align-items:flex-start;gap:11px;color:#465967}.plain-list .icon{width:18px;height:18px;margin-top:4px;color:var(--green)}
+.build-grid{display:grid;grid-template-columns:265px minmax(0,1fr);gap:55px}.step-rail{position:sticky;top:104px;align-self:start}.step-rail ol{list-style:none;margin:21px 0 0;padding:0;border-left:2px solid #cfe0ea}.step-rail li{position:relative;padding:9px 0 9px 27px;color:#667785;font-size:.88rem;font-weight:700}.step-rail li::before{content:"";position:absolute;left:-7px;top:17px;width:12px;height:12px;border-radius:50%;background:white;border:3px solid #9cb9c9}.step-rail li.active{color:var(--blue-dark)}.step-rail li.active::before{border-color:var(--blue);background:var(--blue)}.step-rail a{text-decoration:none;color:inherit}.step-list{display:grid;gap:65px}.build-step{scroll-margin-top:105px}.step-title{display:grid;grid-template-columns:auto 1fr;gap:17px;align-items:start;margin-bottom:23px}.step-number{width:52px;height:52px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--blue);font-size:1.2rem;font-weight:900}.step-title h3{margin:1px 0 4px;font-size:1.55rem}.step-title p{margin:0;color:var(--muted)}
+.codebox{overflow:hidden;border-radius:16px;background:#132433;box-shadow:0 18px 44px rgba(15,37,53,.17)}.codebar{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 18px;color:#b8cad6;background:#0d1c28;border-bottom:1px solid #274052;font-size:.77rem}.codebar span:first-child{display:flex;align-items:center;gap:8px}.codebar .icon{width:14px;height:14px}pre{margin:0;padding:23px;overflow:auto;color:#edf7fc;font:13.5px/1.67 "SFMono-Regular",Consolas,"Liberation Mono",monospace;tab-size:4;white-space:pre}
+.file-shelf{display:grid;grid-template-columns:repeat(3,1fr);gap:17px}.file-card{min-height:220px;padding:22px;display:flex;flex-direction:column;border-radius:16px;background:white;border:1px solid var(--line);box-shadow:0 10px 25px rgba(34,59,78,.07)}.file-card .icon{width:48px;height:48px;margin-bottom:25px}.file-card.pdf .icon{color:#bd423c}.file-card.word .icon{color:#2467a5}.file-card.text .icon{color:#697986}.file-card span{margin-top:5px;color:var(--muted);font-size:.81rem}.file-card a{margin-top:auto;padding-top:13px;font-size:.82rem;font-weight:800}
+.callout-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.callout{padding:23px 25px;border-radius:16px;background:white;border:1px solid var(--line)}.callout.safe{border-left:5px solid var(--green)}.callout.warn{border-left:5px solid var(--gold)}.callout-head{display:flex;align-items:center;gap:9px;margin-bottom:9px;font-weight:900}.callout.safe .callout-head{color:var(--green)}.callout.warn .callout-head{color:#755b0c}.callout-head .icon{width:19px;height:19px}
+.demo{padding:30px;border-radius:24px;background:var(--blue-soft)}.demo-buttons{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:21px}.demo-buttons button{cursor:pointer;padding:9px 13px;border-radius:999px;color:var(--blue-dark);background:white;border:1px solid #bdd8e7;font-weight:780}.demo-buttons button:hover,.demo-buttons button.active{color:white;background:var(--blue);border-color:var(--blue)}.demo-output{min-height:168px;padding:24px;border-radius:15px;background:white;box-shadow:0 10px 28px rgba(43,76,96,.08)}.demo-output a{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:800}.demo-output .icon{width:13px;height:13px}
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:42px}.rule{position:relative;padding-top:86px}.rule-icon{position:absolute;top:0;left:0;width:65px;height:65px;display:grid;place-items:center;border-radius:50% 50% 50% 12px;color:white;background:var(--blue)}.rule-icon .icon{width:26px;height:26px}.rule::after{content:"";position:absolute;top:32px;left:65px;right:0;height:1px;background:#bdd1dc}.rule h3{font-size:1.13rem}.rule p{color:#cfe6f3;font-size:.91rem}
+.finish{display:grid;grid-template-columns:minmax(0,1fr) minmax(290px,.54fr);gap:54px;align-items:center}.checklist{list-style:none;margin:31px 0 0;padding:0;display:grid;gap:13px}.checklist li{display:flex;align-items:flex-start;gap:12px}.checklist .icon{width:19px;height:19px;margin-top:5px;color:var(--green)}.finish-action{padding:32px;border-radius:24px;background:white;box-shadow:var(--shadow)}.download-mark{width:72px;height:72px;display:grid;place-items:center;margin-bottom:22px;border-radius:22px;color:white;background:var(--blue)}.download-mark .icon{width:29px;height:29px}.finish-action .button{width:100%}
+.module-break{position:relative;overflow:hidden;padding:88px 0;color:white;background:linear-gradient(135deg,#11384f 0%,#075889 66%,#0878b9 100%)}.module-break::after{content:"02";position:absolute;right:3vw;top:50%;transform:translateY(-52%);font-size:clamp(9rem,23vw,22rem);line-height:1;font-weight:900;color:rgba(255,255,255,.065)}.module-break .wrap{position:relative;z-index:2}.module-label{display:inline-flex;align-items:center;gap:10px;margin-bottom:21px;padding:7px 12px;border-radius:999px;color:#17384b;background:#f0cf71;font-size:.76rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase}.module-break h2{max-width:760px;font-size:clamp(2.5rem,6vw,5rem)}.module-break .lead{max-width:710px;color:#d8edf8}
+.tool-intro{display:grid;grid-template-columns:minmax(0,.82fr) minmax(360px,1.18fr);gap:55px;align-items:center}.tool-metaphor{position:relative;min-height:410px;display:grid;place-items:center;overflow:hidden;border-radius:32px;background:linear-gradient(160deg,#e5f4fb,#fff)}.tool-metaphor::before,.tool-metaphor::after{content:"";position:absolute;border-radius:50%;border:1px solid rgba(8,120,185,.16)}.tool-metaphor::before{width:330px;height:330px}.tool-metaphor::after{width:230px;height:230px}.tool-button{position:relative;z-index:2;width:165px;height:165px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--blue);box-shadow:0 24px 50px rgba(8,120,185,.28),inset 0 -10px 0 rgba(0,0,0,.08)}.tool-button .icon{width:62px;height:62px}.tool-label{position:absolute;z-index:3;left:50%;bottom:39px;transform:translateX(-50%);white-space:nowrap;padding:9px 13px;border-radius:10px;color:var(--blue-dark);background:white;box-shadow:0 10px 25px rgba(36,61,80,.12);font-size:.85rem;font-weight:900}
+.passport{overflow:hidden;border-radius:25px;background:white;border:1px solid var(--line);box-shadow:var(--shadow)}.passport-head{display:flex;align-items:center;gap:15px;padding:24px 26px;color:white;background:var(--blue-dark)}.passport-head .icon{width:30px;height:30px}.passport-head h3{margin:0;font-size:1.35rem}.passport-code{font-size:.82rem;color:#bde5f8}.passport-rows{display:grid}.passport-row{display:grid;grid-template-columns:145px 1fr;gap:22px;padding:19px 25px;border-top:1px solid var(--line)}.passport-row:first-child{border-top:0}.passport-row b{color:var(--blue-dark);font-size:.88rem}.passport-row span{color:#4e6070}.passport-row code{padding:3px 7px;border-radius:6px;color:#154b6b;background:var(--blue-soft);font-size:.85rem}
+.tool-loop{position:relative;margin-top:48px}.loop-track{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}.loop-step{position:relative;min-height:205px;padding:20px 17px 18px;border-radius:19px;background:white;border:1px solid var(--line);box-shadow:0 10px 26px rgba(34,59,78,.06);transition:transform .28s ease,border-color .28s ease,box-shadow .28s ease}.loop-step:not(:last-child)::after{content:"";position:absolute;z-index:2;right:-20px;top:54px;width:24px;height:2px;background:#9eb8c7}.loop-step:not(:last-child)::before{content:"";position:absolute;z-index:3;right:-20px;top:49px;width:9px;height:9px;border-top:2px solid #83a4b6;border-right:2px solid #83a4b6;transform:rotate(45deg)}.loop-step.active{transform:translateY(-7px);border-color:#79bde0;box-shadow:0 18px 40px rgba(8,120,185,.16)}.loop-step.done{border-color:#9bcdb8}.loop-number{width:34px;height:34px;display:grid;place-items:center;margin-bottom:23px;border-radius:50%;color:white;background:var(--blue);font-size:.78rem;font-weight:900}.loop-step.done .loop-number{background:var(--green)}.loop-step h3{font-size:1rem}.loop-step p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.45}.loop-owner{display:inline-block;margin-top:12px;padding:4px 7px;border-radius:5px;color:#4e6473;background:#edf3f6;font-size:.67rem;font-weight:850;text-transform:uppercase}
+.separation{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:44px}.side-panel{position:relative;overflow:hidden;min-height:355px;padding:30px;border-radius:25px}.side-panel.model{background:linear-gradient(155deg,#eaf5fb,#fff);border:1px solid #b9dcea}.side-panel.app{color:white;background:linear-gradient(150deg,#12384f,#075889)}.side-label{display:inline-flex;align-items:center;gap:8px;margin-bottom:25px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase}.model .side-label{color:var(--blue-dark);background:white}.app .side-label{color:#17384b;background:#f0cf71}.side-panel h3{font-size:1.65rem}.side-panel ul{list-style:none;margin:24px 0 0;padding:0;display:grid;gap:13px}.side-panel li{display:flex;gap:11px;align-items:flex-start}.side-panel li .icon{width:18px;height:18px;margin-top:4px}.model li .icon{color:var(--blue)}.app li .icon{color:#f0cf71}.model li{color:#4b6070}.app li{color:#dceef7}.side-seal{position:absolute;right:-24px;bottom:-35px;width:150px;height:150px;border-radius:50%;border:23px solid rgba(255,255,255,.06)}
+.tool-code-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:24px;align-items:start}.explain-stack{display:grid;gap:16px}.explain-card{padding:22px;border-radius:16px;background:white;border:1px solid var(--line)}.explain-card b{display:flex;align-items:center;gap:9px;margin-bottom:7px;color:var(--blue-dark)}.explain-card .icon{width:18px;height:18px}.explain-card p{margin:0;color:var(--muted);font-size:.9rem}
+.trace-demo{padding:30px;border-radius:28px;background:#eef6fa}.trace-buttons{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:24px}.trace-buttons button{cursor:pointer;padding:9px 13px;border-radius:999px;color:var(--blue-dark);background:white;border:1px solid #bdd8e7;font-weight:780}.trace-buttons button.active{color:white;background:var(--blue);border-color:var(--blue)}.trace-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:13px}.trace-step{min-height:150px;padding:18px;border-radius:16px;color:#71808c;background:rgba(255,255,255,.65);border:1px solid transparent;transition:background .25s ease,color .25s ease,border-color .25s ease,transform .25s ease}.trace-step .trace-num{display:block;margin-bottom:14px;font-size:.69rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.trace-step b{display:block;color:inherit;font-size:.92rem}.trace-step p{margin:7px 0 0;font-size:.78rem;line-height:1.45}.trace-step.on{transform:translateY(-4px);color:#17384b;background:white;border-color:#83c4e4;box-shadow:0 12px 27px rgba(8,120,185,.12)}.trace-step.good{color:#184f3f;background:#eef9f3;border-color:#9dceb8}.trace-step.stop{color:#7d312e;background:#fff3f0;border-color:#e3aaa4}.trace-result{margin-top:17px;padding:18px 20px;border-radius:14px;background:white;border-left:5px solid var(--blue)}.trace-result b{display:block;margin-bottom:4px}.trace-result p{margin:0;color:var(--muted);font-size:.9rem}
+.safety-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;overflow:hidden;margin-top:44px;border-radius:22px;background:var(--line);border:1px solid var(--line)}.safety-item{min-height:200px;padding:25px;background:white}.safety-item .icon{width:30px;height:30px;margin-bottom:26px;color:var(--blue)}.safety-item b{display:block;margin-bottom:8px}.safety-item p{margin:0;color:var(--muted);font-size:.86rem}
+.module-result{display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,.6fr);gap:48px;align-items:center}.result-visual{position:relative;min-height:360px;display:grid;place-items:center;overflow:hidden;border-radius:30px;background:linear-gradient(155deg,#dff2fa,#fff)}.result-visual::before{content:"";position:absolute;width:280px;height:280px;border-radius:50%;border:42px solid rgba(8,120,185,.08)}.result-center{position:relative;z-index:2;width:175px;height:175px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--green);box-shadow:0 24px 48px rgba(28,116,88,.23)}.result-center .icon{width:68px;height:68px}.result-chip{position:absolute;z-index:3;padding:8px 11px;border-radius:9px;background:white;box-shadow:0 10px 24px rgba(36,61,80,.12);font-size:.78rem;font-weight:850}.result-chip.one{left:28px;top:50px}.result-chip.two{right:28px;top:92px}.result-chip.three{left:45px;bottom:48px}.result-chip.four{right:34px;bottom:55px}
+.video-wrap{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(310px,.88fr);gap:44px;align-items:center}.video-card{position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:22px;background:#cfe5ef;box-shadow:var(--shadow)}.video-card img{width:100%;height:100%;object-fit:cover}.video-card::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.03),rgba(3,30,46,.5))}.play-button{position:absolute;z-index:2;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:76px;height:76px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--blue);box-shadow:0 15px 32px rgba(0,0,0,.25)}.play-button .icon{width:27px;height:27px}.video-caption{position:absolute;z-index:2;left:21px;right:21px;bottom:17px;color:white;font-weight:800}.watch-list{margin:22px 0 0;padding:0;list-style:none;display:grid;gap:16px}.watch-list li{display:grid;grid-template-columns:31px 1fr;gap:11px;align-items:start}.watch-list b{width:27px;height:27px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--blue);font-size:.77rem}.watch-list span{color:var(--muted)}
+.sources{padding:68px 0;background:#111f2b;color:#eaf1f5}.sources h2{font-size:2rem}.source-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;overflow:hidden;border:1px solid #314554;border-radius:16px;background:#314554}.source-item{padding:21px;background:#162936}.source-item b{display:block;margin-bottom:5px}.source-item a{color:#8dd8ff;word-break:break-word}.source-item p{margin:7px 0 0;color:#a9bdc9;font-size:.82rem}.footer-note{display:flex;justify-content:space-between;gap:28px;margin-top:32px;color:#91a6b3;font-size:.81rem}
+@media(max-width:1050px){.topnav a:not(.header-download){display:none}.hero-grid{grid-template-columns:1fr;min-height:auto}.hero-copy{max-width:760px}.hero-photo{min-height:460px}.hero-stats{grid-template-columns:repeat(2,1fr)}.hero-stat:nth-child(2){border-right:0}.hero-stat:nth-child(-n+2){border-bottom:1px solid var(--line)}.section-head,.question-stage,.boundary-grid,.finish,.tool-intro,.module-result,.video-wrap{grid-template-columns:1fr}.terms{grid-template-columns:repeat(2,1fr)}.ladder{grid-template-columns:repeat(2,1fr);align-items:stretch}.ladder::before{display:none}.ladder-step,.ladder-step:nth-child(2),.ladder-step:nth-child(3),.ladder-step:nth-child(4){min-height:225px}.build-grid{grid-template-columns:1fr}.step-rail{position:static}.step-rail ol{display:flex;overflow:auto;border:0;gap:7px;padding-bottom:8px}.step-rail li{flex:0 0 auto;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:white}.step-rail li::before{display:none}.flow-row{grid-template-columns:repeat(5,180px);gap:0;overflow:auto;padding:32px 24px}.connector{width:48px}.flow-card{width:180px}.loop-track{grid-template-columns:repeat(3,1fr)}.loop-step:nth-child(3)::after,.loop-step:nth-child(3)::before{display:none}.trace-grid{grid-template-columns:repeat(3,1fr)}.safety-strip{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:720px){.wrap{width:min(100% - 26px,var(--content))}.site-header{position:static}.header-row{min-height:66px}.brand-logo-wrap,.brand-logo{width:148px}.brand-sub{display:none}.header-download{padding:9px 11px}.header-download span{display:none}.section{padding:74px 0}.hero-grid{padding:68px 0 44px;gap:37px}.hero-photo{min-height:385px;border-radius:70px 18px 18px 18px}.hero-stats{grid-template-columns:1fr}.hero-stat,.hero-stat:nth-child(2){border-right:0;border-bottom:1px solid var(--line)}.hero-stat:last-child{border-bottom:0}.section-head{gap:19px;margin-bottom:37px}.student-portrait{min-height:385px}.browser-content{padding:20px}.answer-panel{grid-template-columns:1fr}.ladder,.terms,.file-shelf,.rules,.source-grid,.callout-grid,.separation,.safety-strip{grid-template-columns:1fr}.term{min-height:auto}.boundary-content{padding:27px}.boundary-row{grid-template-columns:1fr}.boundary-arrow{transform:rotate(90deg);text-align:center}.access-panel{min-height:auto}.step-list{gap:55px}.step-title{grid-template-columns:1fr}.step-number{width:45px;height:45px}pre{font-size:11.5px;padding:17px}.demo,.trace-demo{padding:18px}.loop-track{grid-template-columns:1fr}.loop-step{min-height:auto}.loop-step:not(:last-child)::after{right:auto;left:50%;top:auto;bottom:-17px;width:2px;height:18px}.loop-step:not(:last-child)::before{right:auto;left:calc(50% - 4px);top:auto;bottom:-18px;transform:rotate(135deg)}.trace-grid{grid-template-columns:1fr}.tool-code-grid{grid-template-columns:1fr}.passport-row{grid-template-columns:1fr;gap:4px}.result-visual{min-height:420px}.footer-note{flex-direction:column}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+@media print{.site-header,.hero-actions,.demo-buttons,.trace-buttons,.play-button,.finish-action{display:none!important}.section{padding:42px 0}.hero-grid{min-height:0}.hero-photo{min-height:340px}body{font-size:10pt}}
+</style>
+</head>
+<body>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+<symbol id="i-user" viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm-9 10a9 9 0 0 1 18 0H3Z"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><path d="M10.5 3a7.5 7.5 0 1 0 4.73 13.32L20.9 22 22 20.9l-5.68-5.67A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M5 2h9l5 5v15H5V2Zm9 2.4V8h3.6L14 4.4ZM8 12h8v-2H8v2Zm0 4h8v-2H8v2Zm0 4h6v-2H8v2Z"/></symbol>
+<symbol id="i-model" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 0-4 4v1H6a4 4 0 0 0-4 4v5a4 4 0 0 0 4 4h12a4 4 0 0 0 4-4v-5a4 4 0 0 0-4-4h-2V6a4 4 0 0 0-4-4Zm-2 5V6a2 2 0 0 1 4 0v1h-4ZM7 12a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm10 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-7 6h4v-2h-4v2Z"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M9.6 14.4 8.2 13l5-5a4 4 0 0 1 5.7 5.7l-3.5 3.5a4 4 0 0 1-5.7 0l1.4-1.4a2 2 0 0 0 2.9 0l3.5-3.5a2 2 0 1 0-2.9-2.9l-5 5Zm4.8-4.8 1.4 1.4-5 5a4 4 0 0 1-5.7-5.7l3.5-3.5a4 4 0 0 1 5.7 0l-1.4 1.4a2 2 0 0 0-2.9 0l-3.5 3.5a2 2 0 1 0 2.9 2.9l5-5Z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.3 14.7-4-4 1.4-1.4 2.6 2.6 5.2-5.2 1.4 1.4-6.6 6.6Z"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5.2 3.4 9.9 8 11 4.6-1.1 8-5.8 8-11V5l-8-3Zm0 2.2 6 2.2V11c0 4-2.4 7.7-6 8.8V4.2Z"/></symbol>
+<symbol id="i-tool" viewBox="0 0 24 24"><path d="M22 6.5a6.5 6.5 0 0 1-8.4 6.2L6.3 20a2.3 2.3 0 1 1-3.2-3.2l7.3-7.3A6.5 6.5 0 0 1 17.5 1l-3.8 3.8 1.5 3.5 3.5 1.5L22 6.5Z"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><path d="m8.7 17.3-5.3-5.3 5.3-5.3 1.4 1.4L6.2 12l3.9 3.9-1.4 1.4Zm6.6 0-1.4-1.4 3.9-3.9-3.9-3.9 1.4-1.4 5.3 5.3-5.3 5.3ZM10 21l3-18h2l-3 18h-2Z"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><path d="M6 10V7a6 6 0 0 1 12 0v3h2v12H4V10h2Zm2 0h8V7a4 4 0 0 0-8 0v3Zm4 4a2 2 0 0 0-1 3.7V20h2v-2.3a2 2 0 0 0-1-3.7Z"/></symbol>
+<symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 2 1 22h22L12 2Zm0 5.8L19.6 20H4.4L12 7.8ZM11 11v5h2v-5h-2Zm0 7v2h2v-2h-2Z"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M11 3h2v10.2l3.6-3.6L18 11l-6 6-6-6 1.4-1.4 3.6 3.6V3ZM4 19h16v2H4v-2Z"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-3.1a15.3 15.3 0 0 0-1.5-3.3A8.1 8.1 0 0 1 18.9 8ZM12 4c.8 1 1.5 2.3 1.9 4h-3.8c.4-1.7 1.1-3 1.9-4ZM4.3 14a8.2 8.2 0 0 1 0-4h3.4a16.9 16.9 0 0 0 0 4H4.3Zm.8 2h3.1c.3 1.3.8 2.4 1.5 3.3A8.1 8.1 0 0 1 5.1 16Zm3.1-8H5.1a8.1 8.1 0 0 1 4.6-3.3A15.3 15.3 0 0 0 8.2 8Zm3.8 12c-.8-1-1.5-2.3-1.9-4h3.8c-.4 1.7-1.1 3-1.9 4Zm2.3-6H9.7a14.7 14.7 0 0 1 0-4h4.6a14.7 14.7 0 0 1 0 4Zm0 5.3c.7-.9 1.2-2 1.5-3.3h3.1a8.1 8.1 0 0 1-4.6 3.3ZM16.3 14a16.9 16.9 0 0 0 0-4h3.4a8.2 8.2 0 0 1 0 4h-3.4Z"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8L7 4Z"/></symbol>
+</svg>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="#top" aria-label="К началу справочника">
+      <span class="brand-logo-wrap">
+        <img class="brand-logo" src="https://enu.kz/v1/smartapi/serve?path=%2Fgeneral%2Ffiles%2F7c7e1e2e-4601-4a0d-b28f-d05e47a3b181.png" alt="Евразийский национальный университет" onload="this.nextElementSibling.style.display='none'" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <span class="brand-fallback"><b>ЕҰУ</b> ENU</span>
+      </span>
+      <span class="brand-sub">Проектирование<br>агентных систем</span>
+    </a>
+    <nav class="topnav" aria-label="Разделы">
+      <a href="#idea">Что строим</a>
+      <a href="#build">Практика 1</a>
+      <a href="#tool">Инструмент</a>
+      <a href="#tool-test">Проверка</a>
+      <a class="header-download" href="#" onclick="downloadProject();return false"><svg class="icon"><use href="#i-download"/></svg><span>Скачать код</span></a>
+    </nav>
+  </div>
+</header>
+<main id="top">
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">Практика 01 · начинаем с полезной системы</p>
+      <h1 class="display">Помощник по документам <span>ENU</span></h1>
+      <p class="lead" style="margin-top:27px">Студент задаёт вопрос. Программа находит подходящий фрагмент в открытых документах, объясняет его и показывает источник.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="#idea">Начать с вопроса</a>
+        <button class="button secondary" type="button" onclick="downloadProject()"><svg class="icon"><use href="#i-download"/></svg>Скачать один файл Python</button>
+      </div>
+      <p class="hero-note">Это отдельный учебный проект. Он не подключается к Bilge, SmartENU, Platonus или внутренним данным ENU.</p>
+    </div>
+    <figure class="hero-photo" id="campusPhoto">
+      <div class="campus-fallback" aria-hidden="true">
+        <svg viewBox="0 0 760 520"><circle cx="580" cy="120" r="72" fill="#f0cf71"/><path d="M40 420H720" stroke="#8ebdd5" stroke-width="10" stroke-linecap="round"/><path d="M85 390V210L380 90L675 210V390" fill="#fff" stroke="#0878b9" stroke-width="9" stroke-linejoin="round"/><path d="M140 390V240H620V390" fill="#eaf5fb" stroke="#0878b9" stroke-width="7"/><path d="M350 390V275H410V390" fill="#0878b9"/><g fill="#8dc7e3"><rect x="175" y="275" width="58" height="65" rx="4"/><rect x="262" y="275" width="58" height="65" rx="4"/><rect x="440" y="275" width="58" height="65" rx="4"/><rect x="527" y="275" width="58" height="65" rx="4"/></g><path d="M280 180H480" stroke="#d3a72c" stroke-width="12" stroke-linecap="round"/><text x="380" y="155" text-anchor="middle" font-family="Arial" font-size="34" font-weight="800" fill="#075889">ENU</text></svg>
+      </div>
+      <img src="https://smart.enu.kz/api/serve?path=%2Fgeneral%2Ffiles%2Fad745377-34be-4c06-9360-8b99fea3794d.png" alt="Корпус Евразийского национального университета" onload="document.getElementById('campusPhoto').classList.add('remote-loaded')" onerror="this.style.display='none'">
+      <figcaption class="photo-caption"><strong>Знакомая задача университета</strong><a href="https://enu.kz/ru" target="_blank" rel="noopener">Фото и символика: официальный сайт ENU</a></figcaption>
+    </figure>
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat"><b>45–60 минут</b><span>на первую рабочую версию</span></div>
+    <div class="hero-stat"><b>Python</b><span>без сложного фреймворка</span></div>
+    <div class="hero-stat"><b>3 документа</b><span>достаточно для старта</span></div>
+    <div class="hero-stat"><b>1 правило</b><span>нет источника — нет ответа</span></div>
+  </div>
+</section>
+<section class="section" id="idea">
+  <div class="wrap">
+    <div class="section-head">
+      <div><p class="eyebrow">Начинаем не с терминов, а с вопроса</p><h2>Что должен получить студент?</h2></div>
+      <p class="lead">Возьмём сведения, уже опубликованные на enu.kz, и научим программу находить их быстрее человека.</p>
+    </div>
+    <div class="question-stage">
+      <div class="student-portrait"><div class="student-icon"><svg class="icon" style="width:100%;height:auto"><use href="#i-user"/></svg></div><div class="speech">«Какие документы нужны для поступления в магистратуру?»</div></div>
+      <div class="source-answer">
+        <div class="browser-frame">
+          <div class="browser-bar"><i class="browser-dot"></i><i class="browser-dot"></i><i class="browser-dot"></i><span class="browser-url">enu.kz / Поступающим / Магистратура</span></div>
+          <div class="browser-content"><span class="browser-brand">ЕВРАЗИЙСКИЙ НАЦИОНАЛЬНЫЙ УНИВЕРСИТЕТ</span><h3>Перечень документов</h3><ol class="document-list"><li class="hit">заявление на имя руководителя университета;</li><li class="hit">документ о высшем образовании с приложениями;</li><li class="hit">копия документа, удостоверяющего личность;</li><li>сертификат комплексного тестирования;</li><li>медицинская справка и другие документы.</li></ol></div>
+        </div>
+        <div class="answer-panel"><div class="answer-avatar"><svg class="icon"><use href="#i-model"/></svg></div><div><h3>Ответ помощника</h3><p>Нужно подготовить заявление, документ о высшем образовании, удостоверение личности, сертификат КТ, медицинскую справку и документы, относящиеся к вашей ситуации. Полный список следует проверить на официальной странице.</p><a class="source-pill" href="https://enu.kz/ru/page/applicants/masters-program" target="_blank" rel="noopener"><svg class="icon"><use href="#i-link"/></svg>Официальная страница ENU</a></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="section alt">
+  <div class="wrap">
+    <div class="section-head"><div><p class="eyebrow">Не усложняем раньше времени</p><h2>Почему мы пока не строим большого агента</h2></div><p class="lead">Для этой задачи сначала достаточно поиска и одного ответа. Новые возможности добавляем только тогда, когда понятна их польза.</p></div>
+    <div class="ladder"><article class="ladder-step"><span class="ladder-num">1</span><h3>Обычная программа</h3><p>Все шаги заранее записаны в коде.</p></article><article class="ladder-step"><span class="ladder-num">2</span><h3>Чат с моделью</h3><p>Модель объясняет, но может не знать свежих правил.</p></article><article class="ladder-step"><span class="ladder-num">3</span><h3>Помощник с поиском</h3><p>Сначала находит официальный текст, затем отвечает.</p><span class="ladder-tag">строим сейчас</span></article><article class="ladder-step"><span class="ladder-num">4</span><h3>Агент</h3><p>Модель сама выбирает подходящий инструмент и использует его результат.</p></article></div>
+  </div>
+</section>
+<section class="section">
+  <div class="wrap">
+    <div class="section-head"><div><p class="eyebrow">Четыре простых понятия</p><h2>Из чего состоит первая версия</h2></div><p class="lead">Сначала запомните смысл. Профессиональные названия появятся после понятного примера.</p></div>
+    <div class="terms">
+      <article class="term"><div class="term-icon"><svg class="icon"><use href="#i-file"/></svg></div><h3>Документы</h3><p>Текст, которому мы доверяем: правила, инструкции и открытые страницы ENU.</p></article>
+      <article class="term"><div class="term-icon"><svg class="icon"><use href="#i-search"/></svg></div><h3>Поиск</h3><p>Находит несколько абзацев, похожих на вопрос студента.</p></article>
+      <article class="term"><div class="term-icon"><svg class="icon"><use href="#i-model"/></svg></div><h3>Модель</h3><p>Объясняет найденное понятным языком. Факты берёт из переданного текста.</p></article>
+      <article class="term"><div class="term-icon"><svg class="icon"><use href="#i-link"/></svg></div><h3>Источник</h3><p>Ссылка, по которой можно самостоятельно проверить важный ответ.</p></article>
+    </div>
+    <div class="rag-note"><svg class="icon"><use href="#i-search"/></svg><div><b>Позже вы встретите слово RAG.</b> Здесь оно означает простую вещь: <em>перед ответом найти нужный текст в своих документах и передать его модели</em>.</div></div>
+  </div>
+</section>
+<section class="section alt" id="flow">
+  <div class="wrap">
+    <div class="section-head"><div><p class="eyebrow">Один вопрос — пять понятных шагов</p><h2>Как проходит запрос</h2></div><p class="lead">Каждая часть делает одну работу. Поэтому ошибку можно найти и исправить.</p></div>
+    <figure class="flow-board">
+      <div class="flow-row">
+        <div class="flow-card"><div class="flow-icon"><svg class="icon"><use href="#i-user"/></svg></div><b>Студент</b><span>задаёт вопрос</span></div><div class="connector"></div>
+        <div class="flow-card"><div class="flow-icon"><svg class="icon"><use href="#i-search"/></svg></div><b>Поиск</b><span>сравнивает вопрос с текстом</span></div><div class="connector"></div>
+        <div class="flow-card"><div class="flow-icon"><svg class="icon"><use href="#i-file"/></svg></div><b>Документы</b><span>возвращают нужный абзац</span></div><div class="connector"></div>
+        <div class="flow-card primary"><div class="flow-icon"><svg class="icon"><use href="#i-model"/></svg></div><b>Модель</b><span>объясняет простыми словами</span></div><div class="connector"></div>
+        <div class="flow-card success"><div class="flow-icon"><svg class="icon"><use href="#i-check"/></svg></div><b>Ответ</b><span>текст и ссылка</span></div>
+      </div>
+      <figcaption class="flow-caption"><span>Если модель отключена, программа всё равно покажет найденный фрагмент.</span><span>Если подходящего текста нет, ответ не придумывается.</span></figcaption>
+    </figure>
+  </div>
+</section>
+<section class="section">
+  <div class="wrap">
+    <div class="section-head"><div><p class="eyebrow">Как учебный проект связан с ENU</p><h2>Берём открытые документы. Внутренние системы не трогаем.</h2></div><p class="lead">Проект запускается на компьютере студента и использует только локальные копии открытых материалов.</p></div>
+    <div class="boundary-grid">
+      <div class="boundary-map"><div class="boundary-content"><p class="eyebrow" style="color:#bde5f8">Граница учебного проекта</p><h3>Студент работает со своей копией документов и ничего не изменяет в системах университета.</h3><div class="boundary-row"><div class="boundary-node"><svg class="icon"><use href="#i-globe"/></svg><div><b>enu.kz</b><span>открытые правила и инструкции</span></div></div><div class="boundary-arrow">→</div><div class="boundary-node"><svg class="icon"><use href="#i-search"/></svg><div><b>Локальный проект</b><span>читает, ищет и объясняет</span></div></div><div class="boundary-arrow">→</div><div class="boundary-node"><svg class="icon"><use href="#i-user"/></svg><div><b>Студент</b><span>получает ответ со ссылкой</span></div></div></div></div></div>
+      <aside class="access-panel"><div class="access-mark"><svg class="icon"><use href="#i-lock"/></svg></div><p class="eyebrow">Важно о Bilge</p><h3>У студентов нет доступа к Bilge.</h3><p>Bilge не используется для выполнения практики. Позже в справочнике он будет показан только на подготовленной схеме и записи экрана — как пример более крупной системы.</p><ul class="plain-list"><li><svg class="icon"><use href="#i-check"/></svg><span>Никакого входа в Bilge.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Никакого доступа к SmartENU, Platonus, базам данных и внутренним API.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Все задания выполняются в отдельном учебном проекте.</span></li></ul></aside>
+    </div>
+  </div>
+</section>
+<section class="section alt" id="build">
+  <div class="wrap build-grid">
+    <aside class="step-rail"><p class="eyebrow">Практика 01</p><h3>Пять шагов</h3><ol><li class="active"><a href="#p1-step1">Скачать файл</a></li><li><a href="#p1-step2">Посмотреть данные</a></li><li><a href="#p1-step3">Понять поиск</a></li><li><a href="#p1-step4">Запустить</a></li><li><a href="#p1-step5">Проверить</a></li></ol></aside>
+    <div class="step-list">
+      <article class="build-step" id="p1-step1"><div class="step-title"><span class="step-number">1</span><div><h3>Скачайте один файл Python</h3><p>Документы и программа уже находятся внутри него. Ничего устанавливать не нужно.</p></div></div><div class="codebox"><div class="codebar"><span><svg class="icon"><use href="#i-file"/></svg>Учебный файл</span><span>Python 3.10+</span></div><pre>enu_document_assistant.py
+
+Внутри:
+├── три коротких документа
+├── простой поиск
+├── проверяемые источники
+└── демонстрация инструмента</pre></div><div style="margin-top:17px"><button class="button primary" type="button" onclick="downloadProject()"><svg class="icon"><use href="#i-download"/></svg>Скачать enu_document_assistant.py</button></div></article>
+      <article class="build-step" id="p1-step2"><div class="step-title"><span class="step-number">2</span><div><h3>Посмотрите на три документа</h3><p>Каждый документ имеет название, текст и ссылку на исходную страницу.</p></div></div><div class="file-shelf"><article class="file-card pdf"><svg class="icon"><use href="#i-file"/></svg><b>Поступление</b><span>Перечень документов для магистратуры</span><a href="https://enu.kz/ru/page/applicants/masters-program" target="_blank" rel="noopener">Проверить на enu.kz</a></article><article class="file-card word"><svg class="icon"><use href="#i-file"/></svg><b>Цифровые сервисы</b><span>Справочная информация о SmartENU и других сервисах</span><a href="https://enu.kz/ru/page/for-students/digital-services" target="_blank" rel="noopener">Проверить на enu.kz</a></article><article class="file-card text"><svg class="icon"><use href="#i-file"/></svg><b>Правила ответа</b><span>Нет подходящего текста — нет придуманного ответа</span><a href="#rules">Посмотреть правила</a></article></div></article>
+      <article class="build-step" id="p1-step3"><div class="step-title"><span class="step-number">3</span><div><h3>Разберите простой поиск</h3><p>Программа сравнивает слова вопроса со словами в каждом документе.</p></div></div><div class="codebox"><div class="codebar"><span><svg class="icon"><use href="#i-code"/></svg>Главная идея</span><span>без библиотек</span></div><pre>def search_documents(query):
+    query_words = words(query)
+    ranked = []
+
+    for document in DOCUMENTS:
+        common = query_words & words(document["text"])
+        if common:
+            ranked.append((len(common), document))
+
+    ranked.sort(reverse=True, key=lambda item: item[0])
+    return [document for _, document in ranked[:3]]</pre></div><div class="callout-grid" style="margin-top:19px"><div class="callout safe"><div class="callout-head"><svg class="icon"><use href="#i-check"/></svg>Почему это хороший старт</div><p>Алгоритм понятен, работает без интернета и легко проверяется глазами.</p></div><div class="callout warn"><div class="callout-head"><svg class="icon"><use href="#i-warning"/></svg>Чего он пока не умеет</div><p>Он плохо понимает синонимы. Позже его можно заменить поиском по смыслу.</p></div></div></article>
+      <article class="build-step" id="p1-step4"><div class="step-title"><span class="step-number">4</span><div><h3>Запустите программу</h3><p>Откройте терминал в папке с файлом и выполните одну команду.</p></div></div><div class="codebox"><div class="codebar"><span><svg class="icon"><use href="#i-code"/></svg>Терминал</span><span>одна команда</span></div><pre>python enu_document_assistant.py
+
+Выберите режим: 1
+Вопрос: Какие документы нужны для магистратуры?</pre></div></article>
+      <article class="build-step" id="p1-step5"><div class="step-title"><span class="step-number">5</span><div><h3>Проверьте три вопроса</h3><p>Сравните ответ на знакомый вопрос, справочный вопрос и вопрос без данных.</p></div></div><div class="demo"><div class="demo-buttons"><button class="active" type="button" data-search-demo="admission">Документы в магистратуру</button><button type="button" data-search-demo="smartenu">Что такое SmartENU?</button><button type="button" data-search-demo="unknown">Стоимость общежития?</button></div><div class="demo-output" id="searchDemoOutput" aria-live="polite"></div></div></article>
+    </div>
+  </div>
+</section>
+<section class="section blue" id="rules">
+  <div class="wrap"><div class="section-head"><div><p class="eyebrow">Три правила надёжного ответа</p><h2>Полезность важнее красивого текста</h2></div><p class="lead">Эти ограничения превращают случайный чат в понятную инженерную систему.</p></div><div class="rules"><article class="rule"><div class="rule-icon"><svg class="icon"><use href="#i-search"/></svg></div><h3>Сначала найти</h3><p>Модель получает только сведения, которые программа обнаружила в документах.</p></article><article class="rule"><div class="rule-icon"><svg class="icon"><use href="#i-link"/></svg></div><h3>Показать источник</h3><p>Пользователь может открыть страницу ENU и самостоятельно проверить ответ.</p></article><article class="rule"><div class="rule-icon"><svg class="icon"><use href="#i-shield"/></svg></div><h3>Уметь остановиться</h3><p>Если подходящего текста нет, система сообщает об этом, а не придумывает факт.</p></article></div></div>
+</section>
+<section class="section alt">
+  <div class="wrap finish"><div><p class="eyebrow">Результат первой практики</p><h2>У вас есть небольшая, но полезная система</h2><p class="lead">Она умеет искать в своих данных, показывать источник и безопасно отказываться от ответа.</p><ul class="checklist"><li><svg class="icon"><use href="#i-check"/></svg><span>Работает без сложного агентного фреймворка.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Использует локальные копии открытых материалов ENU.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Не подключается к Bilge и внутренним системам.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Готова к следующему шагу — превратить поиск в инструмент.</span></li></ul><div style="margin-top:25px"><a class="button primary" href="#tool">Перейти к практике 02</a></div></div><aside class="finish-action"><div class="download-mark"><svg class="icon"><use href="#i-download"/></svg></div><h3>Заберите рабочий код</h3><p class="small">Один файл содержит обе практики и запускается без сторонних библиотек.</p><button class="button primary" type="button" onclick="downloadProject()">Скачать Python-файл</button></aside></div>
+</section>
+<section class="module-break" id="tool">
+  <div class="wrap"><span class="module-label"><svg class="icon"><use href="#i-tool"/></svg>Практика 02</span><h2>Добавляем один безопасный инструмент</h2><p class="lead">Раньше поиск запускался всегда. Теперь система сначала решает: нужен ли поиск для этого сообщения, и только затем просит программу его выполнить.</p></div>
+</section>
+<section class="section">
+  <div class="wrap">
+    <div class="tool-intro">
+      <div><p class="eyebrow">Начинаем с обычного смысла</p><h2>Инструмент — это подписанная функция</h2><p class="lead">У неё есть понятное имя, описание, входные данные и результат. Модель видит эту «инструкцию к кнопке» и может попросить программу нажать её.</p><div class="rag-note"><svg class="icon"><use href="#i-shield"/></svg><div><b>Главное правило:</b> модель не читает файлы напрямую и не запускает функцию сама. Она лишь формирует просьбу. Обычный код проверяет её и выполняет разрешённое действие.</div></div></div>
+      <div class="tool-metaphor" aria-label="Инструмент как подписанная кнопка"><div class="tool-button"><svg class="icon"><use href="#i-search"/></svg></div><span class="tool-label">search_documents</span></div>
+    </div>
+  </div>
+</section>
+<section class="section alt">
+  <div class="wrap">
+    <div class="section-head"><div><p class="eyebrow">Паспорт инструмента</p><h2>Модель должна понимать, что ей разрешено</h2></div><p class="lead">Чем точнее описание, тем меньше случайных вызовов и неверных аргументов.</p></div>
+    <article class="passport">
+      <div class="passport-head"><svg class="icon"><use href="#i-tool"/></svg><div><h3>Поиск по учебным документам</h3><div class="passport-code mono">search_documents</div></div></div>
+      <div class="passport-rows">
+        <div class="passport-row"><b>Когда использовать</b><span>Когда вопрос касается сведений, которые могут находиться в локальных документах.</span></div>
+        <div class="passport-row"><b>Что получает</b><span>Только одно поле: <code>query</code> — вопрос или короткая поисковая фраза.</span></div>
+        <div class="passport-row"><b>Что возвращает</b><span>Статус, найденные фрагменты и ссылки на источники.</span></div>
+        <div class="passport-row"><b>Чего не умеет</b><span>Не открывает произвольные пути, не меняет файлы, не отправляет заявления и не обращается к внутренним системам ENU.</span></div>
+      </div>
+    </article>
+    <div class="tool-loop" aria-label="Цикл вызова инструмента">
+      <div class="loop-track" id="loopTrack">
+        <article class="loop-step"><span class="loop-number">1</span><h3>Вопрос</h3><p>Студент пишет сообщение обычным языком.</p><span class="loop-owner">пользователь</span></article>
+        <article class="loop-step"><span class="loop-number">2</span><h3>Выбор</h3><p>Модель решает, нужен ли поиск.</p><span class="loop-owner">модель</span></article>
+        <article class="loop-step"><span class="loop-number">3</span><h3>Просьба</h3><p>Модель указывает имя инструмента и query.</p><span class="loop-owner">модель</span></article>
+        <article class="loop-step"><span class="loop-number">4</span><h3>Проверка</h3><p>Программа проверяет имя и входные данные.</p><span class="loop-owner">приложение</span></article>
+        <article class="loop-step"><span class="loop-number">5</span><h3>Выполнение</h3><p>Обычная Python-функция ищет в документах.</p><span class="loop-owner">приложение</span></article>
+        <article class="loop-step"><span class="loop-number">6</span><h3>Ответ</h3><p>Результат возвращается модели, затем студенту.</p><span class="loop-owner">модель + приложение</span></article>
+      </div>
+    </div>
+    <div class="separation">
+      <article class="side-panel model"><span class="side-label"><svg class="icon"><use href="#i-model"/></svg>Модель предлагает</span><h3>Что сделать дальше</h3><ul><li><svg class="icon"><use href="#i-check"/></svg><span>выбрать доступный инструмент;</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>сформировать понятный аргумент query;</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>объяснить пользователю полученный результат.</span></li></ul><div class="side-seal"></div></article>
+      <article class="side-panel app"><span class="side-label"><svg class="icon"><use href="#i-shield"/></svg>Приложение контролирует</span><h3>Что действительно будет выполнено</h3><ul><li><svg class="icon"><use href="#i-lock"/></svg><span>разрешён ли такой инструмент;</span></li><li><svg class="icon"><use href="#i-lock"/></svg><span>корректны ли входные данные;</span></li><li><svg class="icon"><use href="#i-lock"/></svg><span>к каким файлам можно обращаться;</span></li><li><svg class="icon"><use href="#i-lock"/></svg><span>сколько результатов можно вернуть.</span></li></ul><div class="side-seal"></div></article>
+    </div>
+  </div>
+</section>
+<section class="section" id="tool-code">
+  <div class="wrap">
+    <div class="section-head"><div><p class="eyebrow">Пишем безопасную оболочку</p><h2>Сначала проверка, потом поиск</h2></div><p class="lead">Инструмент принимает не путь к файлу, а только короткий вопрос. Список документов остаётся внутри программы.</p></div>
+    <div class="tool-code-grid">
+      <div class="codebox"><div class="codebar"><span><svg class="icon"><use href="#i-code"/></svg>search_documents_tool</span><span>понятный результат</span></div><pre>def search_documents_tool(query: str) -> dict:
+    query = query.strip()
+
+    if not query or len(query) > 300:
+        return {
+            "status": "invalid_input",
+            "items": []
+        }
+
+    items = search_documents(query)
+
+    if not items:
+        return {
+            "status": "not_found",
+            "items": []
+        }
+
+    return {
+        "status": "ok",
+        "items": items[:3]
+    }</pre></div>
+      <div class="explain-stack">
+        <article class="explain-card"><b><svg class="icon"><use href="#i-shield"/></svg>Вход ограничен</b><p>Пустая строка и слишком длинный запрос не доходят до поиска.</p></article>
+        <article class="explain-card"><b><svg class="icon"><use href="#i-lock"/></svg>Путь скрыт</b><p>Модель не может написать <span class="mono">../../secret.txt</span>. Она передаёт только вопрос.</p></article>
+        <article class="explain-card"><b><svg class="icon"><use href="#i-file"/></svg>Результат имеет форму</b><p>Программа всегда возвращает один из трёх статусов: найдено, не найдено или неверный ввод.</p></article>
+        <article class="explain-card"><b><svg class="icon"><use href="#i-check"/></svg>Количество ограничено</b><p>Даже если совпадений много, модель получает не больше трёх фрагментов.</p></article>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="section alt" id="tool-test">
+  <div class="wrap">
+    <div class="section-head"><div><p class="eyebrow">Три сценария вместо догадок</p><h2>Посмотрите, когда инструмент нужен</h2></div><p class="lead">Нажмите на пример. Шаги подсветятся по порядку, чтобы было видно, кто принимает решение и кто выполняет функцию.</p></div>
+    <div class="trace-demo">
+      <div class="trace-buttons"><button class="active" type="button" data-tool-demo="known">Вопрос по документам</button><button type="button" data-tool-demo="greeting">Обычное приветствие</button><button type="button" data-tool-demo="unknown">Данных нет</button><button type="button" data-tool-demo="bad">Неверный ввод</button></div>
+      <div class="trace-grid" id="traceGrid">
+        <article class="trace-step"><span class="trace-num">Шаг 1</span><b id="traceQuestionTitle">Сообщение</b><p id="traceQuestion">Какие документы нужны для магистратуры?</p></article>
+        <article class="trace-step"><span class="trace-num">Шаг 2</span><b id="traceDecisionTitle">Решение модели</b><p id="traceDecision">Нужен поиск по документам.</p></article>
+        <article class="trace-step"><span class="trace-num">Шаг 3</span><b id="traceCallTitle">Просьба к приложению</b><p id="traceCall" class="mono">search_documents(query=...)</p></article>
+        <article class="trace-step"><span class="trace-num">Шаг 4</span><b id="traceToolTitle">Результат функции</b><p id="traceTool" class="mono">status: ok</p></article>
+        <article class="trace-step"><span class="trace-num">Шаг 5</span><b id="traceAnswerTitle">Ответ студенту</b><p id="traceAnswer">Краткий ответ и ссылка на ENU.</p></article>
+      </div>
+      <div class="trace-result" id="traceResult"><b>Что важно заметить</b><p>Модель выбрала поиск, но саму функцию выполнило приложение.</p></div>
+    </div>
+    <div class="safety-strip">
+      <article class="safety-item"><svg class="icon"><use href="#i-search"/></svg><b>Первый инструмент — только чтение</b><p>Ошибку легко исправить: он не меняет данные и не запускает внешнее действие.</p></article>
+      <article class="safety-item"><svg class="icon"><use href="#i-lock"/></svg><b>Разрешён один вход</b><p>Модель передаёт только query, а не имя файла, URL или системную команду.</p></article>
+      <article class="safety-item"><svg class="icon"><use href="#i-file"/></svg><b>Ошибки — тоже результат</b><p>Статусы not_found и invalid_input возвращаются спокойно и понятно.</p></article>
+      <article class="safety-item"><svg class="icon"><use href="#i-shield"/></svg><b>Нет ответа без данных</b><p>Если инструмент ничего не нашёл, модель не должна восполнять пробел догадкой.</p></article>
+    </div>
+  </div>
+</section>
+<section class="section blue">
+  <div class="wrap">
+    <div class="section-head"><div><p class="eyebrow">Запускаем второй режим</p><h2>Один файл — две понятные практики</h2></div><p class="lead">В учебном коде выбор инструмента сначала показан простым правилом. Так можно увидеть весь обмен без API-ключа. Позже это правило заменит настоящая модель.</p></div>
+    <div class="codebox"><div class="codebar"><span><svg class="icon"><use href="#i-code"/></svg>Терминал</span><span>режим инструмента</span></div><pre>python enu_document_assistant.py
+
+Выберите режим: 2
+Вопрос: Какие документы нужны для магистратуры?
+
+[модель] прошу вызвать search_documents
+[приложение] вход проверен
+[инструмент] status = ok
+[ответ] найдено в документе «Поступление»</pre></div>
+    <div class="rules"><article class="rule"><div class="rule-icon"><svg class="icon"><use href="#i-model"/></svg></div><h3>Сейчас — прозрачная имитация</h3><p>Правило выбора написано в коде, поэтому каждый шаг легко увидеть.</p></article><article class="rule"><div class="rule-icon"><svg class="icon"><use href="#i-tool"/></svg></div><h3>Следом — настоящая модель</h3><p>Мы заменим только блок выбора. Инструмент и его проверки останутся прежними.</p></article><article class="rule"><div class="rule-icon"><svg class="icon"><use href="#i-shield"/></svg></div><h3>Безопасность не переносится в prompt</h3><p>Ограничения остаются в обычном коде, которому можно доверять и который можно тестировать.</p></article></div>
+  </div>
+</section>
+<section class="section">
+  <div class="wrap module-result">
+    <div><p class="eyebrow">Результат второй практики</p><h2>Вы построили основу агентного цикла</h2><p class="lead">Система уже умеет выбрать следующий шаг, попросить вызвать инструмент, получить наблюдение и сформировать ответ.</p><ul class="checklist"><li><svg class="icon"><use href="#i-check"/></svg><span>У инструмента есть имя, назначение и понятный вход.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Модель предлагает действие, приложение его проверяет.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Функция возвращает структурированный результат.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Приветствие не вызывает поиск без необходимости.</span></li><li><svg class="icon"><use href="#i-check"/></svg><span>Неизвестный вопрос завершается безопасным отказом.</span></li></ul></div>
+    <div class="result-visual" aria-label="Пять частей готовой основы"><span class="result-chip one">выбор</span><span class="result-chip two">проверка</span><span class="result-chip three">выполнение</span><span class="result-chip four">результат</span><div class="result-center"><svg class="icon"><use href="#i-check"/></svg></div></div>
+  </div>
+</section>
+<section class="section alt">
+  <div class="wrap video-wrap">
+    <a class="video-card" href="https://www.youtube.com/watch?v=LP5OCa20Zpg" target="_blank" rel="noopener" aria-label="Открыть видео Anthropic о создании AI-агентов"><img src="https://i.ytimg.com/vi/LP5OCa20Zpg/hqdefault.jpg" alt="Обложка видео Anthropic о создании AI-агентов"><span class="play-button"><svg class="icon"><use href="#i-play"/></svg></span><span class="video-caption">Anthropic · Tips for building AI agents</span></a>
+    <div><p class="eyebrow">Видео после двух практик</p><h2>Теперь в видео виден знакомый цикл</h2><p class="lead">Вы уже знаете его части: вопрос, выбор шага, инструмент, результат и новый ответ.</p><ul class="watch-list"><li><b>1</b><span>Найдите момент, где модель решает, нужен ли инструмент.</span></li><li><b>2</b><span>Заметьте, что внешнее действие выполняет приложение.</span></li><li><b>3</b><span>Сравните этот цикл с поиском по документам из практики.</span></li></ul></div>
+  </div>
+</section>
+</main>
+<footer class="sources">
+  <div class="wrap"><p class="eyebrow" style="color:#8dd8ff">Использованные материалы</p><h2>Источники практик 01–02</h2><div class="source-grid">
+    <article class="source-item"><b>Символика ENU</b><a href="https://enu.kz/ru/page/university/press-center/symbols-of-l-n-gumilyov-enu" target="_blank" rel="noopener">Официальная страница университета</a><p>Использована для фирменной визуальной основы.</p></article>
+    <article class="source-item"><b>Поступление в магистратуру</b><a href="https://enu.kz/ru/page/applicants/masters-program" target="_blank" rel="noopener">Официальная страница ENU</a><p>Из неё взят реальный учебный вопрос и перечень документов.</p></article>
+    <article class="source-item"><b>Цифровые сервисы ENU</b><a href="https://enu.kz/ru/page/for-students/digital-services" target="_blank" rel="noopener">SmartENU, Platonus и другие сервисы</a><p>Использовано только как контекст цифровой среды; доступа студентов к системам не предполагается.</p></article>
+    <article class="source-item"><b>Anthropic · Building effective agents</b><a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Инженерное руководство</a><p>Использован принцип: начинать с простых блоков и добавлять автономность по необходимости.</p></article>
+    <article class="source-item"><b>OpenAI · Function calling</b><a href="https://developers.openai.com/api/docs/guides/function-calling" target="_blank" rel="noopener">Официальное руководство</a><p>Использована последовательность: описание инструмента → запрос модели → выполнение приложением → результат → ответ.</p></article>
+    <article class="source-item"><b>Spring AI · Tool Calling</b><a href="https://docs.spring.io/spring-ai/reference/api/tools.html" target="_blank" rel="noopener">Официальная документация</a><p>Использована важная граница: модель просит вызвать функцию, но приложение выполняет и контролирует её.</p></article>
+    <article class="source-item"><b>Eino · ToolsNode & Tool Guide</b><a href="https://www.cloudwego.io/docs/eino/core_modules/components/tools_node_guide/" target="_blank" rel="noopener">Официальная документация CloudWeGo</a><p>Показывает ту же идею в Go: Tool описывает внешнюю возможность, ToolsNode выполняет её.</p></article>
+    <article class="source-item"><b>Anthropic · видео</b><a href="https://www.youtube.com/watch?v=LP5OCa20Zpg" target="_blank" rel="noopener">Tips for building AI agents</a><p>Видео поставлено после практики, чтобы термины опирались на уже знакомую систему.</p></article>
+  </div><div class="footer-note"><span>Проектирование агентных систем · Практики 01–02</span><span>Учебный материал для студентов ENU</span></div></div>
+</footer>
+<script>
+const SEARCH_DEMOS={
+  admission:{title:'Найдено: «Поступление»',text:'Для поступления в магистратуру готовят заявление, документ о высшем образовании, удостоверение личности, сертификат КТ, медицинскую справку и другие документы по ситуации.',link:'https://enu.kz/ru/page/applicants/masters-program',label:'Источник: enu.kz · Магистратура'},
+  smartenu:{title:'Найдено: «Цифровые сервисы»',text:'SmartENU — цифровая платформа ENU для автоматизации академических и административных процессов. Учебный проект только объясняет опубликованную информацию и не подключается к платформе.',link:'https://enu.kz/ru/page/for-students/digital-services',label:'Источник: enu.kz · Цифровые сервисы'},
+  unknown:{title:'Подходящий фрагмент не найден',text:'В учебных документах нет сведений о стоимости общежития. Надёжная система не придумывает цену и предлагает проверить официальный сайт ENU.',link:'https://enu.kz/ru',label:'Открыть официальный сайт ENU'}
+};
+function showSearchDemo(key){const d=SEARCH_DEMOS[key];document.getElementById('searchDemoOutput').innerHTML='<h4>'+d.title+'</h4><p>'+d.text+'</p><a href="'+d.link+'" target="_blank" rel="noopener"><svg class="icon"><use href="#i-link"/></svg>'+d.label+'</a>';document.querySelectorAll('[data-search-demo]').forEach(b=>b.classList.toggle('active',b.dataset.searchDemo===key))}
+document.querySelectorAll('[data-search-demo]').forEach(b=>b.addEventListener('click',()=>showSearchDemo(b.dataset.searchDemo)));showSearchDemo('admission');
+const TOOL_DEMOS={
+  known:{q:'Какие документы нужны для магистратуры?',decision:'Нужен поиск по документам.',call:'search_documents(query="документы для магистратуры")',tool:'status: ok · найдено 1',answer:'Краткий список и ссылка на ENU.',note:'Модель выбрала поиск, но саму функцию выполнило приложение.',states:['on','on','on','good','good']},
+  greeting:{q:'Привет!',decision:'Поиск не нужен.',call:'инструмент не вызывается',tool:'нет выполнения',answer:'Здравствуйте! Чем помочь?',note:'Агентность — это не вызов инструмента на каждое сообщение. Иногда правильный шаг — просто ответить.',states:['on','on','','','good']},
+  unknown:{q:'Сколько стоит общежитие?',decision:'Нужен поиск по документам.',call:'search_documents(query="стоимость общежития")',tool:'status: not_found',answer:'В документах нет ответа.',note:'Статус not_found возвращается модели как обычный результат. После него система не должна придумывать цену.',states:['on','on','on','stop','stop']},
+  bad:{q:'   ',decision:'Попытка поиска.',call:'search_documents(query="   ")',tool:'status: invalid_input',answer:'Уточните вопрос.',note:'Проверка входа сработала до поиска. Пустая строка не дошла до документов.',states:['on','on','on','stop','good']}
+};
+let traceTimers=[];
+function runToolDemo(key){traceTimers.forEach(clearTimeout);traceTimers=[];const d=TOOL_DEMOS[key];document.getElementById('traceQuestion').textContent=d.q||'пустая строка';document.getElementById('traceDecision').textContent=d.decision;document.getElementById('traceCall').textContent=d.call;document.getElementById('traceTool').textContent=d.tool;document.getElementById('traceAnswer').textContent=d.answer;document.getElementById('traceResult').innerHTML='<b>Что важно заметить</b><p>'+d.note+'</p>';const steps=[...document.querySelectorAll('#traceGrid .trace-step')];steps.forEach(s=>s.className='trace-step');d.states.forEach((state,i)=>{if(!state)return;traceTimers.push(setTimeout(()=>{steps[i].classList.add(state)},i*270))});document.querySelectorAll('[data-tool-demo]').forEach(b=>b.classList.toggle('active',b.dataset.toolDemo===key))}
+document.querySelectorAll('[data-tool-demo]').forEach(b=>b.addEventListener('click',()=>runToolDemo(b.dataset.toolDemo)));runToolDemo('known');
+const loopSteps=[...document.querySelectorAll('#loopTrack .loop-step')];let loopIndex=0;function animateLoop(){loopSteps.forEach((s,i)=>{s.classList.toggle('active',i===loopIndex);s.classList.toggle('done',i<loopIndex)});loopIndex=(loopIndex+1)%loopSteps.length}animateLoop();setInterval(animateLoop,1150);
+const PY_SOURCE=String.raw`# Проектирование агентных систем — учебный пример ENU
+# Практика 01: поиск по документам
+# Практика 02: один безопасный инструмент
+# Сторонние библиотеки не нужны.
+
+import re
+from typing import Any
+
+DOCUMENTS = [
+    {
+        "title": "Поступление в магистратуру",
+        "source": "https://enu.kz/ru/page/applicants/masters-program",
+        "text": (
+            "Для поступления в магистратуру подают заявление, документ о высшем "
+            "образовании с приложением, копию удостоверения личности, сертификат "
+            "комплексного тестирования, медицинскую справку и другие документы "
+            "в зависимости от ситуации."
+        ),
+    },
+    {
+        "title": "Цифровые сервисы ENU",
+        "source": "https://enu.kz/ru/page/for-students/digital-services",
+        "text": (
+            "SmartENU — цифровая платформа университета для автоматизации "
+            "академических и административных процессов. Учебный пример не "
+            "подключается к SmartENU и только объясняет открытые сведения."
+        ),
+    },
+    {
+        "title": "Правила помощника",
+        "source": "локальный учебный документ",
+        "text": (
+            "Помощник отвечает по найденному тексту, показывает источник и "
+            "не придумывает факт, если подходящего фрагмента нет."
+        ),
+    },
+]
+
+STOP_WORDS = {
+    "а", "в", "во", "для", "и", "из", "к", "как", "на", "не", "о", "по",
+    "с", "со", "у", "что", "это", "какие", "какой", "нужны", "нужно"
+}
+
+
+def words(text: str) -> set[str]:
+    tokens = re.findall(r"[а-яёa-z0-9]+", text.lower())
+    return {token for token in tokens if token not in STOP_WORDS and len(token) > 2}
+
+
+def search_documents(query: str) -> list[dict[str, str]]:
+    query_words = words(query)
+    ranked: list[tuple[int, dict[str, str]]] = []
+
+    for document in DOCUMENTS:
+        common = query_words & words(document["text"] + " " + document["title"])
+        if common:
+            ranked.append((len(common), document))
+
+    ranked.sort(reverse=True, key=lambda item: item[0])
+    return [document for _, document in ranked[:3]]
+
+
+def search_documents_tool(query: str) -> dict[str, Any]:
+    query = query.strip()
+
+    if not query or len(query) > 300:
+        return {"status": "invalid_input", "items": []}
+
+    items = search_documents(query)
+    if not items:
+        return {"status": "not_found", "items": []}
+
+    return {"status": "ok", "items": items[:3]}
+
+
+def print_items(items: list[dict[str, str]]) -> None:
+    for number, item in enumerate(items, start=1):
+        print(f"\n{number}. {item['title']}")
+        print(item["text"])
+        print("Источник:", item["source"])
+
+
+def practice_one() -> None:
+    question = input("Вопрос: ").strip()
+    items = search_documents(question)
+    if not items:
+        print("\nПодходящий фрагмент не найден. Я не буду придумывать ответ.")
+        return
+    print_items(items)
+
+
+def choose_next_step(question: str) -> dict[str, str]:
+    # Это прозрачная имитация решения модели.
+    # В следующей практике этот блок можно заменить настоящим вызовом LLM.
+    lowered = question.lower().strip()
+    greetings = {"привет", "здравствуйте", "сәлем", "hello"}
+
+    if lowered in greetings:
+        return {"type": "answer", "text": "Здравствуйте! Чем помочь?"}
+
+    return {"type": "tool", "name": "search_documents", "query": question}
+
+
+def practice_two() -> None:
+    question = input("Вопрос: ")
+    decision = choose_next_step(question)
+
+    if decision["type"] == "answer":
+        print("\n[модель] инструмент не нужен")
+        print("[ответ]", decision["text"])
+        return
+
+    print("\n[модель] прошу вызвать", decision["name"])
+
+    if decision["name"] != "search_documents":
+        print("[приложение] неизвестный инструмент заблокирован")
+        return
+
+    result = search_documents_tool(decision["query"])
+    print("[приложение] имя и входные данные проверены")
+    print("[инструмент] status =", result["status"])
+
+    if result["status"] == "ok":
+        print_items(result["items"])
+    elif result["status"] == "not_found":
+        print("[ответ] В учебных документах нет подходящего ответа.")
+    else:
+        print("[ответ] Уточните вопрос.")
+
+
+def main() -> None:
+    print("Помощник по документам ENU")
+    print("1 — обычный поиск")
+    print("2 — один безопасный инструмент")
+    mode = input("Выберите режим: ").strip()
+
+    if mode == "1":
+        practice_one()
+    elif mode == "2":
+        practice_two()
+    else:
+        print("Выберите 1 или 2.")
+
+
+if __name__ == "__main__":
+    main()
+`;
+function downloadProject(){const blob=new Blob([PY_SOURCE],{type:'text/x-python;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='enu_document_assistant.py';document.body.appendChild(link);link.click();setTimeout(()=>{URL.revokeObjectURL(link.href);link.remove()},1000)}
+function revealFallbacks(){const logo=document.querySelector('.brand-logo');if(logo&&!logo.naturalWidth){logo.style.display='none';const fallback=document.querySelector('.brand-fallback');if(fallback)fallback.style.display='flex'}}setTimeout(revealFallbacks,1200);
+</script>
+</body>
+</html>

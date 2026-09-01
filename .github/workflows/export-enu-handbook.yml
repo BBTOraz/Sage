@@ -9,7 +9,7 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate-and-export:
@@ -17,6 +17,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: agentic-systems-handbook
+
+      - name: Generate temporary Base64 transport
+        run: |
+          python - <<'PY'
+          import base64
+          import textwrap
+          from pathlib import Path
+
+          source = Path('tmp/enu-agent-handbook.html').read_bytes()
+          encoded = base64.b64encode(source).decode('ascii')
+          Path('tmp/enu-agent-handbook.b64').write_text(
+              '\n'.join(textwrap.wrap(encoded, 30000)) + '\n',
+              encoding='ascii',
+          )
+          print('Base64 chunks:', len(textwrap.wrap(encoded, 30000)))
+          PY
+
+      - name: Commit temporary transport when changed
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet -- tmp/enu-agent-handbook.b64; then
+            echo 'Transport file already current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tmp/enu-agent-handbook.b64
+          git commit -m 'Generate temporary handbook transport'
+          git push origin HEAD:agentic-systems-handbook
 
       - name: Validate HTML structure and embedded Python
         run: |

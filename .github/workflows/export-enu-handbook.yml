@@ -18,9 +18,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate single HTML
+      - name: Validate HTML structure and embedded Python
         run: |
           python - <<'PY'
+          import ast
+          import re
           from html.parser import HTMLParser
           from pathlib import Path
 
@@ -29,6 +31,7 @@ jobs:
           required = [
               '<!doctype html>',
               'У студентов нет доступа к Bilge.',
+              'Все задания выполняются в отдельном учебном проекте.',
               'Практика 02',
               'search_documents_tool',
               'data-tool-demo="known"',
@@ -39,16 +42,65 @@ jobs:
               raise SystemExit(f'Missing required content: {missing}')
 
           class Checker(HTMLParser):
-              pass
+              def __init__(self):
+                  super().__init__()
+                  self.ids = []
+                  self.anchors = []
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if 'id' in attrs:
+                      self.ids.append(attrs['id'])
+                  if tag == 'a' and attrs.get('href', '').startswith('#'):
+                      self.anchors.append(attrs['href'][1:])
 
-          Checker().feed(text)
-          print(f'Validated {path}: {len(text)} characters')
+          checker = Checker()
+          checker.feed(text)
+          duplicates = sorted({value for value in checker.ids if checker.ids.count(value) > 1})
+          if duplicates:
+              raise SystemExit(f'Duplicate HTML ids: {duplicates}')
+          known = set(checker.ids)
+          broken = sorted({anchor for anchor in checker.anchors if anchor and anchor not in known})
+          if broken:
+              raise SystemExit(f'Broken internal anchors: {broken}')
+
+          match = re.search(r'const PY_SOURCE=String\.raw`([\s\S]*?)`;\nfunction downloadProject', text)
+          if not match:
+              raise SystemExit('Embedded Python source was not found')
+          ast.parse(match.group(1))
+
+          if text.count('<html') != 1 or text.count('</html>') != 1:
+              raise SystemExit('Expected exactly one HTML document')
+          print(f'Validated {path}: {len(text)} characters, {len(checker.ids)} ids')
           PY
+
+      - name: Validate JavaScript syntax
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const html = fs.readFileSync('tmp/enu-agent-handbook.html', 'utf8');
+          const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+          if (scripts.length !== 1) throw new Error(`Expected one inline script, got ${scripts.length}`);
+          new Function(scripts[0]);
+          console.log('JavaScript syntax is valid');
+          JS
 
       - name: Prepare artifact
         run: |
           mkdir -p artifact
           cp tmp/enu-agent-handbook.html 'artifact/Проектирование агентных систем — справочник ENU.html'
+
+      - name: Render desktop and mobile previews
+        run: |
+          BROWSER="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$BROWSER" ]; then
+            echo 'Chrome/Chromium not found; preview rendering skipped.'
+            exit 0
+          fi
+          URL="file://$PWD/tmp/enu-agent-handbook.html"
+          "$BROWSER" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1440,1200 --screenshot=artifact/desktop-top.png "$URL"
+          "$BROWSER" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1440,1200 --screenshot=artifact/desktop-tool.png "$URL#tool"
+          "$BROWSER" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,844 --screenshot=artifact/mobile-top.png "$URL"
+          "$BROWSER" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,844 --screenshot=artifact/mobile-tool.png "$URL#tool"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

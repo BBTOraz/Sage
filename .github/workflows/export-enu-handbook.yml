@@ -1,0 +1,56 @@
+name: Export ENU handbook
+
+on:
+  push:
+    branches:
+      - agentic-systems-handbook
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate single HTML
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          path = Path('tmp/enu-agent-handbook.html')
+          text = path.read_text(encoding='utf-8')
+          required = [
+              '<!doctype html>',
+              'У студентов нет доступа к Bilge.',
+              'Практика 02',
+              'search_documents_tool',
+              'data-tool-demo="known"',
+              'downloadProject()',
+          ]
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f'Missing required content: {missing}')
+
+          class Checker(HTMLParser):
+              pass
+
+          Checker().feed(text)
+          print(f'Validated {path}: {len(text)} characters')
+          PY
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p artifact
+          cp tmp/enu-agent-handbook.html 'artifact/Проектирование агентных систем — справочник ENU.html'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: enu-agent-systems-handbook
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 1

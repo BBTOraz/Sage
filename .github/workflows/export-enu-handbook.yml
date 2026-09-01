@@ -29,17 +29,18 @@ jobs:
 
           source = Path('tmp/enu-agent-handbook.html').read_bytes()
           encoded = base64.b64encode(source).decode('ascii')
+          chunks = textwrap.wrap(encoded, 30000)
           Path('tmp/enu-agent-handbook.b64').write_text(
-              '\n'.join(textwrap.wrap(encoded, 30000)) + '\n',
+              '\n'.join(chunks) + '\n',
               encoding='ascii',
           )
-          print('Base64 chunks:', len(textwrap.wrap(encoded, 30000)))
+          print('Base64 chunks:', len(chunks))
           PY
 
       - name: Commit temporary transport when changed
         if: github.event_name == 'push'
         run: |
-          if git diff --quiet -- tmp/enu-agent-handbook.b64; then
+          if [ -z "$(git status --porcelain -- tmp/enu-agent-handbook.b64)" ]; then
             echo 'Transport file already current.'
             exit 0
           fi
@@ -119,19 +120,6 @@ jobs:
         run: |
           mkdir -p artifact
           cp tmp/enu-agent-handbook.html 'artifact/Проектирование агентных систем — справочник ENU.html'
-
-      - name: Render desktop and mobile previews
-        run: |
-          BROWSER="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          if [ -z "$BROWSER" ]; then
-            echo 'Chrome/Chromium not found; preview rendering skipped.'
-            exit 0
-          fi
-          URL="file://$PWD/tmp/enu-agent-handbook.html"
-          "$BROWSER" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1440,1200 --screenshot=artifact/desktop-top.png "$URL"
-          "$BROWSER" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1440,1200 --screenshot=artifact/desktop-tool.png "$URL#tool"
-          "$BROWSER" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,844 --screenshot=artifact/mobile-top.png "$URL"
-          "$BROWSER" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,844 --screenshot=artifact/mobile-tool.png "$URL#tool"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
